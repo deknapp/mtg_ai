@@ -1,124 +1,94 @@
-# MTG Arena Draft Assistant
+# mtg_ai
 
-An agentic assistant that looks at a screenshot of an in-progress **Magic: The Gathering
-Arena** draft — the cards you've picked so far plus the current pack — and recommends your
-next pick, with a short, readable rationale.
+A general **Magic: The Gathering AI toolkit**. The current focus is a **Sealed deck builder**
+that auto-imports your MTG Arena pool and builds the best legal 40-card deck for it — color
+choice, card selection, and a mana-feasible manabase — grounded in real data, not model memory.
 
-The recommendation is produced by a **network of specialized agents**, each doing one narrow
-job, orchestrated into a single pipeline. A web interface lets you upload or paste a
-screenshot and see the recommended pick, ranked alternatives, and the reasoning behind it.
-
-> This is a portfolio project. It's built to show real competence in multi-agent
-> orchestration, multimodal extraction, RAG over a real dataset, cost-aware model routing,
-> and a polished, opinionated web UI — with a clean architecture and commit history.
+> **Try it (no setup beyond an ingest):**
+> ```bash
+> uv run python -m mtg_ai.core.ingest --set msh          # build the card DB for the set
+> uv run mtg-sealed --fixture tests/fixtures/sealed_pool_msh.json   # build from a saved pool
+> uv run mtg-sealed                                        # …or read your live Arena pool
+> ```
 
 ---
 
-## What it does
+## What it does (sealed)
 
-1. You paste or upload a screenshot of your current Arena draft.
-2. A **vision/extraction agent** reads the picked cards and the current pack into a typed,
-   structured draft state.
-3. A deterministic **enrichment** step joins every card name against a local **Scryfall**
-   database — types, colors, mana cost, rules text, ratings — so all card facts are grounded
-   in real data, not the model's memory.
-4. An **archetype/color agent** reads what your deck is becoming (color commitment, open
-   lanes, curve gaps) while a **card-evaluation agent** ranks the pack on raw power and limited
-   signal. These run in parallel.
-5. A **synthesis agent** weighs power vs. deck fit vs. signal and produces the final pick plus
-   a 2–3 sentence rationale.
-6. The web UI renders the recommendation — and can reveal each agent's intermediate output, so
-   the reasoning is fully inspectable.
+```
+MTG Arena log ─▶ pool import ─▶ enrichment ─▶ color-pair scoring ─▶ deck build ─▶ 40-card deck
+ (Player.log)    (grpId→card)   (Scryfall +   (all 10 pairs)       (selection +   + curve
+                                 17Lands)                            manabase +     + manabase
+                                                                     bombs)         + rationale
+```
+
+1. **Auto-import the pool.** MTG Arena writes your sealed pool to its local log as card ids
+   (`grpId`s). We find the log, read the pool, and map each `grpId` to a real card via Scryfall's
+   `arena_id` — **no screenshots, no OCR, no typing.** (Requires Arena's *Detailed Logs (Plugin
+   Support)* setting; the tool tells you exactly what to do if it's off.)
+2. **Ground every card in real data.** Card facts come from a local **Scryfall** store; card
+   *power* comes from **17Lands** games-in-hand win-rates, cached locally.
+3. **Choose colors objectively.** Score all ten two-color pairs by the strength of their best 23
+   castable spells (bombs weighted up) and pick the strongest.
+4. **Build a deck you can actually cast.** Select 23 spells (bombs prioritized, with a creature
+   floor), then optimize a 17-land manabase and check each color against a **Frank-Karsten-style
+   "sources needed to cast on curve"** threshold — so the recommendation is legal *and* castable.
+
+### Design objectives (from the brief)
+- **A — Mana feasibility.** A deterministic manabase optimizer + source-count check. If a color's
+  requirements can't be supported by a sane 17-land split, the deck is flagged, not silently shipped.
+- **B — Bombs.** High-rarity, high-win-rate cards are detected and prioritized into the build, and
+  pull color choice toward them.
+- **C — Synergy.** 17Lands aggregate data is context-independent, so it does **not** encode pairwise
+  synergy; v1 uses composition/mechanic heuristics, and an LLM synergy pass is the next layer
+  (deliberately honest about what the data can and can't do).
 
 ## Architecture
 
+Shared, format-agnostic machinery in `core`; format pipelines on top:
+
 ```
-screenshot
-   │
-   ▼
-[Vision / Extraction Agent]  ── multimodal LLM ──▶  structured draft state:
-   │                                                 { picked: [...], pack: [...] }
-   ▼
-[Card Enrichment]  ── deterministic, no LLM ──▶  join names against local Scryfall data:
-   │                                              types, colors, mana, rules text, rating
-   ├──────────────┬───────────────────────────┐
-   ▼              ▼                            │
-[Archetype /    [Card Evaluation Agent]        │  (run in parallel)
- Color Agent]    rank pack: power + signal     │
-   │              │                            │
-   └──────┬───────┘                            │
-          ▼                                    │
-   [Synthesis Agent]  ── stronger model ──▶  final pick + ranked alternatives + rationale
-          │
-          ▼
-   web UI renders recommendation, alternatives, and per-agent reasoning
+src/mtg_ai/
+  core/     config · data (Scryfall SQLite, name + arena_id lookups) · ingest · llm · models
+  sealed/   ingest_log · ratings (17Lands cache) · enrichment · scoring · manabase · build · pipeline · cli
+  draft/    the ported draft-pick assistant (screenshot → next pick)
+  api.py · serve.py     one-command local web app
 ```
 
-### Design principles
-
-- **Agent network, not one big prompt.** Each agent has a single responsibility and a typed
-  input/output. The pipeline is legible from the code.
-- **Cost-aware model routing.** Cheap model (Haiku) for narrow, high-volume steps
-  (extraction, ranking); a stronger model (Sonnet, Opus only where justified) for the final
-  synthesis. Tiering is a deliberate, visible design feature.
-- **Prompt caching for reused context.** Card knowledge and agent system prompts are identical
-  on every pick in a session, so they're cached and re-read at a large discount.
-- **Grounded in real data.** Card facts come from the Scryfall dataset, not the LLM. The model
-  identifies cards; the data layer supplies the facts.
-- **Typed interfaces between agents.** Every inter-agent message is a Pydantic model, so the
-  whole pipeline is inspectable and testable.
-
-## Tech stack
-
-| Layer      | Choice                                                        |
-|------------|--------------------------------------------------------------|
-| Backend    | Python 3.11+, FastAPI, async, Pydantic-typed I/O             |
-| Agents     | Anthropic API with per-step model routing + prompt caching   |
-| Data       | Scryfall bulk data ingested into SQLite (behind a repository interface) |
-| Frontend   | TypeScript + React + Vite                                    |
-| Testing    | pytest, with a mocked LLM so the pipeline runs without spending API budget |
-
-## The interface
-
-The UI is derived from MTG's own visual world rather than a generic dashboard. Its signature
-idea: **the interface takes on the color identity of the deck you're drafting** — as your
-picks commit to colors in the WUBRG system, the palette shifts to match. The hero is always
-the recommended card and its rationale; each agent's intermediate reasoning is available
-through progressive disclosure.
+Portfolio-relevant choices:
+- **Cost-aware by construction.** The expensive part of sealed (color choice, selection, manabase)
+  is *deterministic optimization* — free and fully inspectable. An LLM is reserved for synergy
+  judgement and the readable rationale, behind the same routed/cached transport the draft
+  assistant uses (Haiku for narrow steps, Sonnet for synthesis, system-prompt caching).
+- **Data spine keyed by id.** Arena log, Scryfall, and 17Lands all join on `arena_id`/`mtga_id` —
+  no fuzzy name matching in the sealed path.
+- **Graceful data fallback.** A freshly released set has no 17Lands *sealed* win-rates yet, so the
+  ratings layer falls back to the set's *draft* data (`Sealed → PremierDraft → …`) and, failing
+  that, to rarity/mechanic heuristics. The build always runs.
+- **Typed interfaces, mock-first.** Every stage passes Pydantic models; the whole pipeline runs
+  offline with zero API cost, which is also how the tests exercise it.
 
 ## Data sources
+- **Scryfall** bulk/set data (free, within their guidelines) → local SQLite card store, carrying
+  `arena_id`. Build it with `python -m mtg_ai.core.ingest --set <code>`.
+- **17Lands** public card-ratings per `(set, format)` → local SQLite cache. Reload with
+  `mtg-sealed --reload`. Sealed data used when available; draft data as the fallback signal.
 
-- **[Scryfall bulk data](https://scryfall.com/docs/api/bulk-data)** — the full card database,
-  updated daily and free to use. This is the card-knowledge layer.
-- **17Lands** — public limited-format statistics (pick order, win rates by card), used to
-  ground the evaluation agent in real draft signal.
-
-This is a personal analysis tool that reads a screenshot you provide. It does not automate,
-inject into, or interact with the Arena client.
-
-## Getting started
-
+## Running
 ```bash
-# backend
-cp .env.example .env          # add your Anthropic API key
-pip install -e .
-python -m mtg_draft_assistant.ingest    # build the local Scryfall database
-uvicorn mtg_draft_assistant.api:app --reload
-
-# frontend
-cd web && npm install && npm run dev
+uv venv -p 3.12 && uv pip install -e ".[dev]"
+uv run python -m mtg_ai.core.ingest --set msh     # one-time card DB for the set
+uv run mtg-sealed                                  # build from your current Arena sealed pool
+uv run pytest -q                                   # 26 tests, all offline
 ```
-
-API keys are supplied through environment variables and are never committed. See
-`.env.example` for the required configuration.
+Enabling the Arena pool import (one-time): **Arena → Settings → Account → "Detailed Logs (Plugin
+Support)"**, fully quit and reopen Arena, then open your sealed event.
 
 ## Status
+Sealed pipeline is complete and validated end-to-end on a real 84-card Marvel Super Heroes pool
+(→ a legal, mana-feasible W/U deck). See `PROGRESS.md` for the live status, decisions, and roadmap
+(web UI, LLM synergy pass). The draft-pick assistant is ported and kept working atop `core`.
 
-Built in staged, committable milestones — mocked end-to-end skeleton → data layer →
-extraction → reasoning agents → synthesis with routing and caching → web UI → polish
-(17Lands signal, per-agent "why" panel, cost dashboard, CI/CD).
-
-## License
-
-Personal project. Magic: The Gathering is a trademark of Wizards of the Coast; this tool is
-unaffiliated and uses only freely available public data.
+## Legal / ToS
+A personal analysis tool that reads a pool from a log the user already has. Scryfall and 17Lands
+data are used within their public guidelines. No automation of or injection into the Arena client.

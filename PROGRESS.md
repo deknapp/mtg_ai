@@ -89,20 +89,40 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
 
 ## TODO (roughly in order)
 1. ~~**Capture a real MSH sealed pool**~~ ✅ DONE — 84-card pool captured, mapping validated, fixture saved.
-2. **Restructure + rename** package `mtg_draft_assistant` → `mtg_ai` with `core/ sealed/ draft/`; update pyproject, entry points, imports; get ported tests green. Commit.
-3. **Arena log parser** `sealed/ingest_log.py`: auto-find Player.log → Pool (grpId→arena_id→card). Test against the captured real pool.
-4. **17Lands data layer** `sealed/data_17lands.py`: fetch + cache Sealed ratings for `msh`, reload action. Verify MSH data exists.
-5. **Manabase optimizer** `sealed/manabase.py`: deterministic land split + source-count feasibility (Karsten thresholds). Unit-tested.
-6. **Sealed agents**: evaluation (17Lands-grounded), color-pair scorer (all 10 pairs), deckbuilder (optimizer + LLM synergy/rationale). Mock-first.
-7. **Sealed pipeline** wiring; CLI path end-to-end on the real pool (mock LLM, no cost).
-8. **Web UI**: decklist hero + curve + manabase + color-pair reasoning + agent trace; keep color-identity signature. One-command launch + `run.command`.
-9. **Real-model validation** on the live pool (Nathan opts in; do not spend API $ without ok).
-10. **README** as a portfolio artifact (general toolkit, sealed-first).
+2. ~~**Restructure + rename** → `core/ sealed/ draft/`~~ ✅ DONE — committed `02e8fb5`, 15 ported tests green, draft CLI works.
+3. ~~**Arena log parser** `sealed/ingest_log.py`~~ ✅ DONE — auto-find + largest-CardPool parse + actionable errors; tested.
+4. ~~**17Lands data layer** `sealed/ratings.py`~~ ✅ DONE — fetch+cache+reload, Sealed→PremierDraft fallback, joins by arena_id.
+5. ~~**Manabase optimizer** `sealed/manabase.py`~~ ✅ DONE — pip-proportional 17-land split + Karsten feasibility flag; tested.
+6. ~~**Sealed engine** color-pair scorer + selection + deckbuilder~~ ✅ DONE — `sealed/build.py`, deterministic, bombs prioritized.
+7. ~~**Sealed pipeline + `mtg-sealed` CLI**~~ ✅ DONE — validated on the real 84-card pool → legal W/U 40-card deck. Committed `9c39261`, pushed.
+8. ~~**Web UI (sealed)**~~ ✅ DONE — decklist hero (parchment, color-identity), curve columns,
+   manabase w/ feasibility chip, color-pair table, sideboard, pipeline. `/api/sealed/{demo,build}`
+   endpoints; App is sealed-first, opens on the sample pool, "Build from my Arena pool" button.
+   One-command `mtg-ai` launcher + double-click `run.command`. Built + screenshot-verified.
+9. ~~**README** portfolio artifact~~ ✅ DONE — sealed-first, architecture, objectives A/B/C, data spine.
+10. **LLM synergy/rationale pass** (real backend): a deckbuilder synthesis agent that refines cuts +
+    writes the rationale; wire model routing/caching. Mock-first; opt-in for real spend. ⬅ NEXT
+11. **Real-model validation** on the live pool (Nathan opts in; no API $ without ok).
+
+### Polish backlog (nice-to-have)
+- Curve card names truncate hard in narrow columns — add a hover tooltip / full name on wider screens.
+- Removal detection regex may under-count; revisit with set mechanics.
+- Re-check 17Lands for MSH *Sealed* win-rates later (currently PremierDraft fallback).
+
+### Known small items / polish
+- 2 of 84 pool ids (105176, 105182) don't resolve on Scryfall's arena endpoint (basic lands / art
+  variants) — correctly excluded; we generate basics. Non-issue.
+- Removal detection is a regex heuristic — may under-count; fine for v1, revisit with set mechanics.
+- Sealed win-rates on 17Lands are still empty for MSH; PremierDraft fallback is active. Re-check later.
 
 ## NEED FROM USER
 1. ✅ DONE — Arena Detailed Logs enabled + MSH sealed pool captured.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.
 
 ## Next action
-- TODO #2: restructure/rename `mtg_draft_assistant` → `mtg_ai` (`core/ sealed/ draft/`), get tests
-  green, first commit. No user input needed.
+- Sealed builder is complete end-to-end (CLI + visual web app), validated on the real MSH pool.
+- Remaining: TODO #10 (LLM synergy/rationale pass — needs Nathan's opt-in for real API spend) and
+  the polish backlog above. Nothing is blocked.
+- Try it now:
+  - Visual app:  `uv run mtg-ai`   (or double-click `run.command`)
+  - CLI:         `uv run mtg-sealed`   (live pool)  ·  `--fixture tests/fixtures/sealed_pool_msh.json` (sample)

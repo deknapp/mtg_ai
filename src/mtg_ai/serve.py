@@ -56,9 +56,9 @@ def main() -> None:
     url = f"http://{HOST}:{PORT}"
     # Open the browser shortly after the server starts accepting connections.
     threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-    print(f"\n  MTG Draft Assistant is running →  {url}")
-    print("  (mock backend — free; flip 'Use real models' in the UI to analyze real screenshots)")
-    print("  Press Ctrl+C to stop.\n")
+    print(f"\n  MTG AI — Sealed Deck Builder is running →  {url}")
+    print("  Opens on a sample pool; click 'Build from my Arena pool' to use your live sealed pool.")
+    print("  (Deterministic + free — no API key needed.)  Press Ctrl+C to stop.\n")
     uvicorn.run("mtg_ai.api:app", host=HOST, port=PORT, log_level="warning")
 
 

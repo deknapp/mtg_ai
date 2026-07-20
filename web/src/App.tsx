@@ -1,29 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchDemo, fetchStatus, recommend, type PipelineResult } from "./api";
+import { buildSealed, fetchSealedDemo, type SealedResult } from "./api";
 import { applyAccent } from "./theme";
-import { Dropzone } from "./components/Dropzone";
-import { Recommendation } from "./components/Recommendation";
-import { AgentTrace } from "./components/AgentTrace";
-import { CostLog } from "./components/CostLog";
+import { SealedView } from "./components/SealedView";
 
 export default function App() {
-  const [result, setResult] = useState<PipelineResult | null>(null);
+  const [result, setResult] = useState<SealedResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [liveAvailable, setLiveAvailable] = useState(false);
-  const [useLive, setUseLive] = useState(false);
 
-  // Ask the backend whether real models are available (a key is configured).
+  // Re-tint the whole interface from the built deck's colors (the signature element).
   useEffect(() => {
-    fetchStatus().then((s) => setLiveAvailable(s.live_available)).catch(() => {});
-  }, []);
-
-  // The signature element: re-tint the whole interface from the deck's committed colors.
-  useEffect(() => {
-    applyAccent(result?.archetype.committed_colors ?? []);
+    applyAccent(result?.chosen_colors ?? []);
   }, [result]);
 
-  const run = useCallback(async (fn: () => Promise<PipelineResult>) => {
+  const run = useCallback(async (fn: () => Promise<SealedResult>) => {
     setBusy(true);
     setError(null);
     try {
@@ -35,67 +25,46 @@ export default function App() {
     }
   }, []);
 
+  // Open on the sample build so there's always something on screen.
+  useEffect(() => {
+    run(fetchSealedDemo);
+  }, [run]);
+
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden />
-          <span className="brand-name">Draft Assistant</span>
+          <span className="brand-name">MTG AI · Sealed</span>
         </div>
-        <label
-          className={`live-toggle${liveAvailable ? "" : " disabled"}`}
-          title={
-            liveAvailable
-              ? "When on, uploaded screenshots are analyzed with real models (costs a few tokens per pick). The demo is always free."
-              : "Add ANTHROPIC_API_KEY to .env to enable real-model analysis."
-          }
-        >
-          <input
-            type="checkbox"
-            checked={useLive && liveAvailable}
-            disabled={!liveAvailable}
-            onChange={(e) => setUseLive(e.target.checked)}
-          />
-          <span>Use real models</span>
-          {!liveAvailable && <span className="muted"> (no key)</span>}
-        </label>
+        <div className="actions">
+          <button className="btn" disabled={busy} onClick={() => run(buildSealed)}>
+            Build from my Arena pool
+          </button>
+          <button className="btn ghost" disabled={busy} onClick={() => run(fetchSealedDemo)}>
+            Sample pool
+          </button>
+        </div>
       </header>
 
       <main className="main">
-        <Dropzone
-          onFile={(f) => run(() => recommend(f, useLive && liveAvailable))}
-          onDemo={() => run(fetchDemo)}
-          busy={busy}
-          compact={!!result}
-        />
+        {busy && <div className="empty">Building the best deck from your pool…</div>}
 
-        {error && (
+        {error && !busy && (
           <div className="error" role="alert">
-            <strong>Couldn’t get a recommendation.</strong> {error}
-          </div>
-        )}
-
-        {!result && !busy && !error && (
-          <div className="empty">
-            <p>
-              Upload a draft screenshot to get a pick — or press{" "}
-              <em>Try the demo draft</em> to see the pipeline run end-to-end.
+            <strong>Couldn’t read your Arena pool.</strong>
+            <pre className="error-detail">{error}</pre>
+            <p className="muted">
+              The sample pool still works — press <em>Sample pool</em> above.
             </p>
           </div>
         )}
 
-        {result && (
-          <>
-            <Recommendation result={result} />
-            <AgentTrace result={result} />
-            <CostLog result={result} />
-          </>
-        )}
+        {result && !busy && <SealedView result={result} />}
       </main>
 
       <footer className="foot muted">
-        The interface wears the deck’s colors — accents are driven by the archetype agent’s
-        committed colors.
+        The interface wears the deck’s colors — accents are driven by the chosen color pair.
       </footer>
     </div>
   );

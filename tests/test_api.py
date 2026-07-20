@@ -55,3 +55,21 @@ def test_recommend_defaults_to_mock():
             files={"screenshot": ("draft.png", b"fake-image-bytes", "image/png")},
         ).json()
         assert all(c["model"].startswith("mock:") for c in body["cost_log"])
+
+
+def test_sealed_demo_endpoint_returns_a_build():
+    # The bundled fixture always builds; the sealed pipeline is deterministic (no LLM, no spend).
+    with TestClient(app) as client:
+        resp = client.get("/api/sealed/demo")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["colorpair_scores"]) == 10  # all pairs scored regardless of card DB
+        assert body["deck"] is not None
+        assert all(c["model"] == "deterministic" for c in body["cost_log"])
+
+
+def test_sealed_build_missing_log_returns_400():
+    with TestClient(app) as client:
+        resp = client.get("/api/sealed/build", params={"log": "/nope/not-a-real-log.log"})
+        assert resp.status_code == 400
+        assert "Arena" in resp.json()["detail"]

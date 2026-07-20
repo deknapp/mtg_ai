@@ -14,26 +14,14 @@ cached locally.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from pathlib import Path
 
 from ..core.config import get_settings
-from .ingest_log import ArenaLogError, ParsedPool, load_pool
+from .ingest_log import ArenaLogError, load_pool, load_pool_fixture
 from .models import SealedResult
 from .pipeline import build_sealed_pipeline, load_ratings
 
 _COLOR_NAMES = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
-
-
-def _parsed_from_fixture(path: str | Path) -> ParsedPool:
-    data = json.loads(Path(path).expanduser().read_text())
-    return ParsedPool(
-        grp_ids=data["grp_ids"],
-        event=data.get("event"),
-        set_code=data.get("set"),
-        detailed_logs=True,
-    )
 
 
 def _render(result: SealedResult) -> str:
@@ -105,7 +93,7 @@ def main() -> None:
 
     settings = get_settings()
     try:
-        parsed = _parsed_from_fixture(ns.fixture) if ns.fixture else load_pool(ns.log)
+        parsed = load_pool_fixture(ns.fixture) if ns.fixture else load_pool(ns.log)
     except ArenaLogError as e:
         print(f"\n{e}\n", file=sys.stderr)
         sys.exit(1)

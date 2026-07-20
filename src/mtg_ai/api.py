@@ -17,16 +17,20 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .core.config import Settings, get_secrets
 from .draft.models import PipelineResult
 from .draft.pipeline import build_pipeline
+from .sealed.ingest_log import ArenaLogError, ParsedPool, load_pool, load_pool_fixture
+from .sealed.models import SealedResult
+from .sealed.pipeline import build_sealed_pipeline, load_ratings
 
 # The built frontend (web/dist), if it has been produced by `npm run build`.
 _DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
+_FIXTURE = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sealed_pool_msh.json"
 
 
 @asynccontextmanager
@@ -43,7 +47,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="MTG Arena Draft Assistant", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="mtg_ai — Sealed Deck Builder + Draft Assistant", version="0.1.0", lifespan=lifespan)
 
 # Allow the Vite dev server origin during development (harmless once the UI is served here).
 app.add_middleware(
@@ -85,6 +89,34 @@ async def recommend(
     use_live = live and app.state.live_available
     pipeline = app.state.live_pipeline if use_live else app.state.mock_pipeline
     return await pipeline.run(image_bytes)
+
+
+# --- Sealed endpoints ----------------------------------------------------------------------
+# The sealed build is deterministic (no LLM), so these are always free — no live toggle needed.
+
+
+def _run_sealed(parsed: ParsedPool) -> SealedResult:
+    settings = Settings()
+    if parsed.set_code:
+        settings.default_set = parsed.set_code
+    ratings = load_ratings(settings)  # cached; network only on first fetch
+    return build_sealed_pipeline(settings, ratings=ratings).run(parsed)
+
+
+@app.get("/api/sealed/demo", response_model=SealedResult)
+def sealed_demo() -> SealedResult:
+    """Build from the bundled sample pool — always works offline, no Arena needed."""
+    return _run_sealed(load_pool_fixture(_FIXTURE))
+
+
+@app.get("/api/sealed/build", response_model=SealedResult)
+def sealed_build(log: str | None = Query(None, description="Path to a specific Arena Player.log.")):
+    """Build from the player's live Arena sealed pool (auto-found log)."""
+    try:
+        parsed = load_pool(log)
+    except ArenaLogError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return _run_sealed(parsed)
 
 
 # Serve the built SPA when present. Mounted LAST so the /api/* routes above take precedence.

@@ -1,0 +1,140 @@
+import type { DeckCard, SealedResult } from "../api";
+import { COLOR_HEX, COLOR_NAME } from "../theme";
+
+const CURVE_KEYS = ["1", "2", "3", "4", "5", "6+"];
+
+function ratingPct(r: number | null): string {
+  return r === null ? "—" : `${(r * 100).toFixed(1)}%`;
+}
+
+function CardRow({ c }: { c: DeckCard }) {
+  const tag = c.is_bomb ? "★" : c.role === "removal" ? "✜" : "";
+  return (
+    <li className={`deck-card${c.is_bomb ? " bomb" : ""}`}>
+      <span className="dc-tag" aria-hidden>{tag}</span>
+      <span className="dc-name">{c.name}</span>
+      <span className="dc-rating muted">{ratingPct(c.rating)}</span>
+    </li>
+  );
+}
+
+export function SealedView({ result }: { result: SealedResult }) {
+  const { deck, pool, colorpair_scores, chosen_colors } = result;
+  const byCmc: Record<string, DeckCard[]> = Object.fromEntries(CURVE_KEYS.map((k) => [k, []]));
+  for (const c of deck.spells) {
+    const key = c.cmc >= 6 ? "6+" : String(Math.max(1, Math.floor(c.cmc)));
+    (byCmc[key] ??= []).push(c);
+  }
+  const maxCol = Math.max(1, ...CURVE_KEYS.map((k) => byCmc[k].length));
+
+  return (
+    <div className="sealed">
+      {/* Hero: the built deck */}
+      <section className="hero">
+        <div className="hero-colors">
+          {chosen_colors.map((c) => (
+            <span key={c} className="pip" style={{ background: COLOR_HEX[c] }} title={COLOR_NAME[c]} />
+          ))}
+          <h1 className="hero-title">{chosen_colors.map((c) => COLOR_NAME[c]).join(" / ")}</h1>
+        </div>
+        <div className="hero-stats">
+          <b>{deck.total_cards}-card deck</b>
+          <span className="muted">{deck.spells.length} spells · {deck.manabase.total_lands} lands</span>
+          <span className="stat">{deck.creatures} creatures</span>
+          <span className="stat">{deck.removal} removal</span>
+          <span className="stat">{deck.bombs.length} bomb{deck.bombs.length === 1 ? "" : "s"}</span>
+        </div>
+        <p className="hero-rationale">{deck.rationale}</p>
+        {pool.event && <p className="muted pool-line">Pool: {pool.cards.length} cards · {pool.event}</p>}
+      </section>
+
+      {/* Curve columns */}
+      <section className="panel">
+        <h2 className="panel-h">The deck, by curve</h2>
+        <div className="curve">
+          {CURVE_KEYS.map((k) => (
+            <div key={k} className="curve-col">
+              <ul className="curve-cards">
+                {byCmc[k].map((c, i) => (
+                  <CardRow c={c} key={c.name + i} />
+                ))}
+              </ul>
+              <div className="curve-axis">
+                <span className="curve-count">{byCmc[k].length}</span>
+                <span className="curve-mv muted">{k}</span>
+                <div className="curve-bar" style={{ height: `${(byCmc[k].length / maxCol) * 40 + 4}px` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="two-col">
+        {/* Manabase */}
+        <section className="panel">
+          <h2 className="panel-h">Manabase <span className={`chip ${deck.manabase.feasible ? "ok" : "warn"}`}>
+            {deck.manabase.feasible ? "castable" : "tight"}</span></h2>
+          <ul className="lands">
+            {Object.entries(deck.manabase.lands).map(([land, n]) => (
+              <li key={land}><b>{n}×</b> {land}</li>
+            ))}
+          </ul>
+          <ul className="notes muted">
+            {deck.manabase.notes.map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </section>
+
+        {/* Color-pair reasoning */}
+        <section className="panel">
+          <h2 className="panel-h">Colors considered</h2>
+          <table className="pairs">
+            <thead>
+              <tr><th>Pair</th><th>Score</th><th>Playable</th><th>Bombs</th><th>Rem.</th></tr>
+            </thead>
+            <tbody>
+              {colorpair_scores.slice(0, 5).map((s, i) => (
+                <tr key={s.label} className={i === 0 ? "chosen" : ""}>
+                  <td className="pair-label">
+                    {s.colors.map((c) => (
+                      <span key={c} className="pip sm" style={{ background: COLOR_HEX[c] }} />
+                    ))}
+                    {s.label}
+                  </td>
+                  <td>{s.deck_score.toFixed(2)}</td>
+                  <td>{s.playable_count}</td>
+                  <td>{s.bomb_count}</td>
+                  <td>{s.removal_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      {/* Sideboard + pipeline */}
+      <div className="two-col">
+        {deck.sideboard_highlights.length > 0 && (
+          <section className="panel">
+            <h2 className="panel-h">Next best (sideboard)</h2>
+            <ul className="sideboard">
+              {deck.sideboard_highlights.map((c, i) => (
+                <li key={c.name + i}><span className="dc-name">{c.name}</span>
+                  <span className="muted">{ratingPct(c.rating)}</span></li>
+              ))}
+            </ul>
+          </section>
+        )}
+        <section className="panel">
+          <h2 className="panel-h">Pipeline</h2>
+          <ul className="pipeline">
+            {result.cost_log.map((c, i) => (
+              <li key={i}><span className="agent">{c.agent}</span>
+                <span className="muted">{c.model}</span></li>
+            ))}
+          </ul>
+          <p className="muted">Color choice, selection and manabase are deterministic — free and inspectable.</p>
+        </section>
+      </div>
+    </div>
+  );
+}

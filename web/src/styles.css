@@ -566,3 +566,76 @@ table.cost-table {
     animation: none !important;
   }
 }
+
+/* --- Sealed view ---------------------------------------------------------- */
+.actions { display: flex; gap: 10px; }
+.btn {
+  font-family: var(--f-body); font-size: 0.9rem; font-weight: 600;
+  color: var(--ink); background: var(--accent); border: none;
+  padding: 9px 16px; border-radius: var(--radius-sm); cursor: pointer;
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.ghost { background: transparent; color: var(--fog); box-shadow: inset 0 0 0 1px var(--stone-600); }
+
+.sealed { display: flex; flex-direction: column; gap: 18px; }
+
+.hero {
+  background: var(--parchment); color: var(--ink);
+  border-radius: var(--radius); padding: 22px 26px;
+  border-top: 4px solid transparent; border-image: var(--accent-gradient) 1;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.hero-colors { display: flex; align-items: center; gap: 10px; }
+.hero-title { font-family: var(--f-display); font-size: 2rem; margin: 0; letter-spacing: 0.02em; }
+.hero-stats { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 8px 0; }
+.hero-stats .stat { font-weight: 600; font-size: 0.95rem; }
+.hero-stats .muted { color: #6b6577; }
+.hero-rationale { font-size: 1.05rem; line-height: 1.5; margin: 6px 0 0; max-width: 62ch; }
+.pool-line { color: #6b6577 !important; margin-top: 10px; }
+
+.pip { width: 16px; height: 16px; border-radius: 50%; display: inline-block;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35); }
+.pip.sm { width: 11px; height: 11px; margin-right: 3px; }
+
+.panel { background: var(--stone-700); border-radius: var(--radius); padding: 16px 18px; }
+.panel-h { font-family: var(--f-display); font-size: 1.15rem; margin: 0 0 12px;
+  display: flex; align-items: center; gap: 10px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+
+.chip { font-family: var(--f-body); font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; padding: 2px 8px; border-radius: 20px; }
+.chip.ok { background: rgba(47,125,87,0.25); color: #7fd0a3; }
+.chip.warn { background: rgba(178,58,46,0.25); color: #e79b91; }
+
+.curve { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.curve-col { display: flex; flex-direction: column; gap: 8px; }
+.curve-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.deck-card { display: flex; align-items: center; gap: 6px; background: var(--stone-800);
+  border-radius: 7px; padding: 5px 7px; font-size: 0.8rem; }
+.deck-card.bomb { box-shadow: inset 0 0 0 1px var(--accent); }
+.dc-tag { color: var(--accent); width: 10px; }
+.dc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-rating { font-variant-numeric: tabular-nums; }
+.curve-axis { display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border-top: 1px solid var(--stone-600); padding-top: 4px; }
+.curve-count { font-weight: 700; font-size: 0.9rem; }
+.curve-bar { width: 60%; background: var(--accent-gradient); border-radius: 3px; }
+
+.lands { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.lands li { font-size: 0.95rem; }
+.notes { margin: 0; padding-left: 16px; }
+
+.pairs { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.pairs th { text-align: left; color: var(--mist); font-weight: 500; padding: 4px 6px; }
+.pairs td { padding: 5px 6px; border-top: 1px solid var(--stone-600); font-variant-numeric: tabular-nums; }
+.pairs tr.chosen { background: rgba(255,255,255,0.04); font-weight: 600; }
+.pair-label { display: flex; align-items: center; }
+
+.sideboard, .pipeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sideboard li, .pipeline li { display: flex; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
+.pipeline .agent { font-weight: 600; }
+.error-detail { white-space: pre-wrap; font-family: var(--f-body); font-size: 0.9rem; margin: 8px 0; }

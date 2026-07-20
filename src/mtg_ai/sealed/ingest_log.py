@@ -9,6 +9,7 @@ This module only extracts ids + metadata; turning ids into cards is enrichment's
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -103,6 +104,10 @@ def load_pool(log_path: str | Path | None = None) -> ParsedPool:
             + "\nOpen Arena at least once, or pass the log path explicitly."
         )
     parsed = parse_pool(path.read_text(errors="ignore"))
+    return _require_pool(parsed, path)
+
+
+def _require_pool(parsed: ParsedPool, path: Path) -> ParsedPool:
     if not parsed.grp_ids:
         hint = (
             "Enable Arena → Settings → Account → 'Detailed Logs (Plugin Support)', fully quit "
@@ -112,3 +117,14 @@ def load_pool(log_path: str | Path | None = None) -> ParsedPool:
         )
         raise ArenaLogError(f"No sealed CardPool found in {path}.\n{hint}")
     return parsed
+
+
+def load_pool_fixture(path: str | Path) -> ParsedPool:
+    """Load a pool from a saved JSON fixture (raw grpIds + metadata). For offline demo/testing."""
+    data = json.loads(Path(path).expanduser().read_text())
+    return ParsedPool(
+        grp_ids=data["grp_ids"],
+        event=data.get("event"),
+        set_code=data.get("set"),
+        detailed_logs=True,
+    )

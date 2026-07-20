@@ -109,3 +109,88 @@ export async function recommend(file: File, live: boolean): Promise<PipelineResu
   const q = live ? "?live=true" : "";
   return parse(await fetch(`/api/recommend${q}`, { method: "POST", body: form }));
 }
+
+// --- Sealed ----------------------------------------------------------------------------------
+// Mirrors src/mtg_ai/sealed/models.py.
+
+export interface ColorPairScore {
+  label: string;
+  colors: Color[];
+  playable_count: number;
+  deck_score: number;
+  avg_rating: number;
+  bomb_count: number;
+  removal_count: number;
+  creature_count: number;
+  note: string;
+}
+
+export interface DeckCard {
+  name: string;
+  cmc: number;
+  colors: Color[];
+  rarity: string | null;
+  rating: number | null;
+  is_bomb: boolean;
+  role: string; // creature | removal | other
+}
+
+export interface Manabase {
+  lands: Record<string, number>;
+  sources: Record<string, number>;
+  total_lands: number;
+  feasible: boolean;
+  notes: string[];
+}
+
+export interface SealedDeck {
+  colors: Color[];
+  spells: DeckCard[];
+  manabase: Manabase;
+  curve: Record<string, number>;
+  bombs: string[];
+  creatures: number;
+  removal: number;
+  total_cards: number;
+  sideboard_highlights: DeckCard[];
+  rationale: string;
+}
+
+export interface Pool {
+  set_code: string;
+  event: string | null;
+  cards: Card[];
+  unresolved_ids: number[];
+}
+
+export interface SealedResult {
+  pool: Pool;
+  colorpair_scores: ColorPairScore[];
+  chosen_colors: Color[];
+  deck: SealedDeck;
+  cost_log: CostEntry[];
+}
+
+async function parseSealed(res: Response): Promise<SealedResult> {
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+    } catch {
+      /* keep the status line */
+    }
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+/** Build from the bundled sample pool (always works offline, no Arena needed). */
+export async function fetchSealedDemo(): Promise<SealedResult> {
+  return parseSealed(await fetch("/api/sealed/demo"));
+}
+
+/** Build from the player's live Arena sealed pool (auto-found log). */
+export async function buildSealed(): Promise<SealedResult> {
+  return parseSealed(await fetch("/api/sealed/build"));
+}
