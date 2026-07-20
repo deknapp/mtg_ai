@@ -31,8 +31,10 @@ function CardRow({ c }: { c: DeckCard }) {
   const r = ratingLabel(c);
   return (
     <li className={`deck-card${c.is_bomb ? " bomb" : ""}`}>
-      <span className="dc-tag" aria-hidden>{tag}</span>
-      <span className="dc-name">{c.name}</span>
+      <span className="dc-line">
+        {tag && <span className="dc-tag" aria-hidden>{tag}</span>}
+        <span className="dc-name" title={c.name}>{c.name}</span>
+      </span>
       <span className="dc-rating muted" title={r.title}>{r.text}</span>
     </li>
   );

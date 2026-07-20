@@ -181,6 +181,14 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
 - Verified end-to-end: double-launch (no stop between) → 2nd launch reclaims 8000 (PID changes),
   never falls back to 8001; foreign occupant → correctly moves to 8001.
 
+### Readable deck visualizer + no-cache HTML (2026-07-20) — DONE
+- The "deck, by curve" columns clipped card names (6 narrow cols, `.dc-name` was nowrap+ellipsis →
+  "Iron M…"). Now: min column width 116px (row scrolls x on tiny windows), names **wrap fully**
+  (`overflow-wrap:anywhere`), and the win-rate moved to its own muted line under the name.
+- `api.py` middleware sets `Cache-Control: no-store` on the HTML shell only (hashed JS/CSS still
+  cache) — fixes the recurring "I rebuilt but the browser shows the old page" stale-tab problem.
+  (A server already running from before this change still needs one hard-reload; restarts don't.)
+
 ## NEED FROM USER
 1. ✅ DONE — Arena Detailed Logs enabled + MSH sealed pool captured.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.

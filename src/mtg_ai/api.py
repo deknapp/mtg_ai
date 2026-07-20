@@ -68,6 +68,19 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def _no_store_html(request, call_next):
+    """Never let the browser cache the HTML shell, so a rebuilt UI shows up on plain reload.
+
+    Content-hashed JS/CSS under /assets keep their default (cacheable) headers — only the HTML
+    entry point is marked no-store, which is what caused "I don't see my change" stale tabs.
+    """
+    response = await call_next(request)
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
