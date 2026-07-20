@@ -41,6 +41,7 @@ export default function App() {
   const [pools, setPools] = useState<PoolSummary[]>([]);
   const [selected, setSelected] = useState(0);
   const [detailedLogs, setDetailedLogs] = useState<boolean | null>(null);
+  const [guidance, setGuidance] = useState("");
   const started = useRef(false);
 
   useEffect(() => {
@@ -82,10 +83,10 @@ export default function App() {
       const pool = pools[selected];
       const msg = ai ? "Reasoning over your pool with Opus… (~15s)" : "Building your selected pool…";
       return pool
-        ? run(() => buildSealedPool(pool, ai), msg)
-        : run(() => buildSealed(ai), msg);
+        ? run(() => buildSealedPool(pool, ai, guidance), msg)
+        : run(() => buildSealed(ai, guidance), msg);
     },
-    [pools, selected, run],
+    [pools, selected, run, guidance],
   );
 
   // Open on the deterministic sample so there's always something on screen (free, instant).
@@ -128,18 +129,46 @@ export default function App() {
               : "Add ANTHROPIC_API_KEY to .env to enable AI builds"}
             onClick={() => buildChosen(true)}
           >
-            ✦ Build with AI{!aiAvailable && <span className="muted"> (no key)</span>}
+            ✦ {result?.built_by === "ai" ? "Redo with AI" : "Build with AI"}
+            {!aiAvailable && <span className="muted"> (no key)</span>}
           </button>
           <button className="btn ghost" disabled={busy} onClick={() => buildChosen(false)}>
             Quick build
           </button>
           <button className="btn ghost" disabled={busy}
-            onClick={() => run(() => fetchSealedDemo(aiAvailable), aiAvailable
+            onClick={() => run(() => fetchSealedDemo(aiAvailable, guidance), aiAvailable
               ? "Reasoning over the sample pool with Opus…" : "Building the sample deck…")}>
             Sample
           </button>
         </div>
       </header>
+
+      <div className="guidance-bar">
+        <label className="guidance-field">
+          <span className="guidance-label">Tell the AI</span>
+          <input
+            className="guidance-input"
+            type="text"
+            value={guidance}
+            disabled={busy}
+            placeholder="Optional steer for the AI build — e.g. “lean aggressive W/R”, “splash blue for card draw”, “build around Iron Man”. Press Enter to build."
+            onChange={(e) => setGuidance(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && aiAvailable && !busy) buildChosen(true);
+            }}
+          />
+        </label>
+        {guidance.trim() && (
+          <button className="btn ghost small" disabled={busy} onClick={() => setGuidance("")}>
+            Clear
+          </button>
+        )}
+        <span className="guidance-hint muted">
+          {aiAvailable
+            ? "Used by ✦ Build with AI (spends a few cents). Quick build ignores it."
+            : "Add ANTHROPIC_API_KEY to .env to enable AI builds."}
+        </span>
+      </div>
 
       <main className="main">
         {!busy && pools.length > 1 && (

@@ -242,6 +242,32 @@ def test_ai_deckbuilder_path_with_mock_llm():
     assert any(c.agent == "deckbuilder" for c in result.cost_log)
 
 
+def test_guidance_is_passed_into_the_ai_prompt():
+    # A player's free-text steer must reach the model's user prompt so it can honor it.
+    from mtg_ai.core.models import Color, CostEntry
+    from mtg_ai.sealed.deckbuilder_llm import SealedDeckBuilderAgent
+    from mtg_ai.sealed.models import LLMBuild
+
+    captured = {}
+
+    class _SpyLLM:
+        def structured(self, *, agent, model, user, **kwargs):
+            captured["user"] = user
+            return LLMBuild(colors=[Color.GREEN], maindeck=[], synergies=[], bombs=[],
+                            rationale="ok"), CostEntry(agent=agent, model=model)
+
+    pool = _mono_pool(Color.GREEN, "G")
+    agent = SealedDeckBuilderAgent(_SpyLLM(), "claude-opus-4-8")
+    agent.run(pool, score_color_pairs(pool), guidance="lean aggressive, splash red for removal")
+    assert "PLAYER GUIDANCE" in captured["user"]
+    assert "splash red for removal" in captured["user"]
+
+    # No guidance -> no guidance section leaks into the prompt.
+    captured.clear()
+    agent.run(pool, score_color_pairs(pool))
+    assert "PLAYER GUIDANCE" not in captured["user"]
+
+
 def test_resolve_names_honors_duplicates_and_fuzzy():
     from mtg_ai.sealed.build import resolve_names
 

@@ -52,7 +52,7 @@ class SealedPipeline:
         self._llm = llm
         self._use_llm = use_llm
 
-    def run(self, parsed: ParsedPool) -> SealedResult:
+    def run(self, parsed: ParsedPool, guidance: str = "") -> SealedResult:
         cost_log: list[CostEntry] = []
 
         pool = SealedEnrichment(self._repo, self._ratings).run(parsed, self._settings.default_set)
@@ -63,7 +63,7 @@ class SealedPipeline:
 
         if self._use_llm and self._llm is not None:
             build, cost = SealedDeckBuilderAgent(self._llm, self._settings.model_strong).run(
-                pool, scores
+                pool, scores, guidance
             )
             cost_log.append(cost)
             colors = build.colors or best_colors(scores)

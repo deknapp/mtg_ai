@@ -158,6 +158,18 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
   the selection; a note shows how many pools were found + which is selected.
 - Tests: +regression (`most_recent_full_pool_not_the_first`) + `list_pools` dedupe/order. 34 pass.
 
+### AI guidance / "redo with my opinion" (2026-07-20) — DONE
+- Free-text steer for the AI build threaded end-to-end: web input → API → pipeline →
+  `deckbuilder_llm`. `SealedDeckBuilderAgent.run(pool, scores, guidance)` appends a **PLAYER
+  GUIDANCE** block to the user prompt (honored over the data-driven default where the pool allows;
+  deterministic manabase still enforces castability, model explains any tradeoff).
+- API: `guidance` is a query param on `GET /api/sealed/{demo,build}` and a body field on
+  `POST /api/sealed/build`. Only applied when `ai=true` (deterministic build ignores it).
+- UI: a **"Tell the AI"** input bar under the header (Enter = build); header AI button relabels to
+  **"Redo with AI"** after an AI build, so iterating on the same pool with new input is one click.
+- Test: `test_guidance_is_passed_into_the_ai_prompt` (spy LLM asserts the steer reaches the prompt,
+  and that no guidance section leaks when empty). 35 tests pass.
+
 ## NEED FROM USER
 1. ✅ DONE — Arena Detailed Logs enabled + MSH sealed pool captured.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.

@@ -105,12 +105,15 @@ async def recommend(
 # The sealed build is deterministic (no LLM), so these are always free — no live toggle needed.
 
 
-def _run_sealed(parsed: ParsedPool, use_ai: bool = False) -> SealedResult:
+def _run_sealed(parsed: ParsedPool, use_ai: bool = False, guidance: str = "") -> SealedResult:
     settings = Settings()
     if parsed.set_code:
         settings.default_set = parsed.set_code
     ratings = load_ratings(settings)  # cached; network only on first fetch
-    return build_sealed_pipeline(settings, ratings=ratings, use_llm=use_ai).run(parsed)
+    # Guidance only steers the AI build; the deterministic build ignores it.
+    return build_sealed_pipeline(settings, ratings=ratings, use_llm=use_ai).run(
+        parsed, guidance=guidance if use_ai else ""
+    )
 
 
 # Rarity ordering so the sample-card preview leads with the pool's bombs — the cards that best
@@ -157,6 +160,7 @@ class PoolBuildRequest(BaseModel):
     grp_ids: list[int]
     set_code: str | None = None
     event: str | None = None
+    guidance: str = ""  # free-text steer for the AI build ("lean aggressive", "splash red"…)
 
 
 @app.get("/api/sealed/pools", response_model=PoolListResponse)
@@ -200,22 +204,24 @@ def sealed_status() -> dict:
 @app.get("/api/sealed/demo", response_model=SealedResult)
 def sealed_demo(
     ai: bool = Query(False, description="Let the AI reason over the build (uses the API key)."),
+    guidance: str = Query("", description="Free-text steer for the AI build."),
 ) -> SealedResult:
     """Build from the bundled sample pool — deterministic by default; AI when ai=true."""
-    return _run_sealed(load_pool_fixture(_FIXTURE), use_ai=ai and ai_available())
+    return _run_sealed(load_pool_fixture(_FIXTURE), use_ai=ai and ai_available(), guidance=guidance)
 
 
 @app.get("/api/sealed/build", response_model=SealedResult)
 def sealed_build(
     log: str | None = Query(None, description="Path to a specific Arena Player.log."),
     ai: bool = Query(False, description="Let the AI reason over the build (uses the API key)."),
+    guidance: str = Query("", description="Free-text steer for the AI build."),
 ):
     """Build from the player's live Arena sealed pool (auto-found log)."""
     try:
         parsed = load_pool(log)
     except ArenaLogError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    return _run_sealed(parsed, use_ai=ai and ai_available())
+    return _run_sealed(parsed, use_ai=ai and ai_available(), guidance=guidance)
 
 
 @app.post("/api/sealed/build", response_model=SealedResult)
@@ -226,14 +232,14 @@ def sealed_build_selected(
     """Build from a specific pool the user chose in the picker (see `/api/sealed/pools`).
 
     The exact card ids are posted back, so this builds precisely the selected pool — no
-    re-guessing which of several pools in the log to use.
+    re-guessing which of several pools in the log to use. `guidance` (in the body) steers the AI.
     """
     if not req.grp_ids:
         raise HTTPException(status_code=400, detail="The selected pool has no cards.")
     parsed = ParsedPool(
         grp_ids=req.grp_ids, event=req.event, set_code=req.set_code, detailed_logs=True
     )
-    return _run_sealed(parsed, use_ai=ai and ai_available())
+    return _run_sealed(parsed, use_ai=ai and ai_available(), guidance=req.guidance)
 
 
 # Serve the built SPA when present. Mounted LAST so the /api/* routes above take precedence.

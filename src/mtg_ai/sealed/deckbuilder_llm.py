@@ -92,13 +92,25 @@ class SealedDeckBuilderAgent:
             parts.append(self._card_line(c))
         return "\n".join(parts)
 
-    def run(self, pool: Pool, scores: list[ColorPairScore]) -> tuple[LLMBuild, CostEntry]:
+    def run(
+        self, pool: Pool, scores: list[ColorPairScore], guidance: str = ""
+    ) -> tuple[LLMBuild, CostEntry]:
         user = (
             self._describe(pool, scores)
             + "\n\nBuild the best 40-card sealed deck. Return the colors (2 or 3), the 23 maindeck "
             "nonland card names, the bombs, the key synergies, and a 3-4 sentence rationale that "
             "says why these colors and whether you're splashing (and off what fixing)."
         )
+        guidance = (guidance or "").strip()
+        if guidance:
+            # The player's steer takes priority over the data-driven default — but only within
+            # what's actually buildable: the deterministic manabase still enforces castability, so
+            # honor the intent (colors, archetype, must-include cards) and say how you applied it.
+            user += (
+                "\n\nPLAYER GUIDANCE (honor this over the default read where the pool allows it; "
+                "if it's not feasible, do the closest legal thing and explain the tradeoff in the "
+                f"rationale):\n{guidance}"
+            )
         return self._llm.structured(
             agent=self.name,
             model=self._model,

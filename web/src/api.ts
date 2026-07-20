@@ -197,14 +197,23 @@ export async function fetchSealedStatus(): Promise<{ ai_available: boolean }> {
   return res.json();
 }
 
+/** Build query string from ai + optional free-text guidance (guidance only affects AI builds). */
+function aiQuery(ai: boolean, guidance = ""): string {
+  const params = new URLSearchParams();
+  if (ai) params.set("ai", "true");
+  if (guidance.trim()) params.set("guidance", guidance.trim());
+  const q = params.toString();
+  return q ? `?${q}` : "";
+}
+
 /** Build from the bundled sample pool. `ai` lets Opus reason over the build. */
-export async function fetchSealedDemo(ai = false): Promise<SealedResult> {
-  return parseSealed(await fetch(`/api/sealed/demo${ai ? "?ai=true" : ""}`));
+export async function fetchSealedDemo(ai = false, guidance = ""): Promise<SealedResult> {
+  return parseSealed(await fetch(`/api/sealed/demo${aiQuery(ai, guidance)}`));
 }
 
 /** Build from the player's live Arena sealed pool (auto-found log). `ai` opts into reasoning. */
-export async function buildSealed(ai = false): Promise<SealedResult> {
-  return parseSealed(await fetch(`/api/sealed/build${ai ? "?ai=true" : ""}`));
+export async function buildSealed(ai = false, guidance = ""): Promise<SealedResult> {
+  return parseSealed(await fetch(`/api/sealed/build${aiQuery(ai, guidance)}`));
 }
 
 /** One sealed pool found in the Arena log, with metadata to help the user recognize it. */
@@ -231,8 +240,15 @@ export async function fetchPools(): Promise<PoolListResponse> {
   return res.json();
 }
 
-/** Build from a specific pool the user selected in the picker. `ai` opts into reasoning. */
-export async function buildSealedPool(pool: PoolSummary, ai = false): Promise<SealedResult> {
+/**
+ * Build from a specific pool the user selected in the picker.
+ * `ai` opts into reasoning; `guidance` is a free-text steer honored only on AI builds.
+ */
+export async function buildSealedPool(
+  pool: PoolSummary,
+  ai = false,
+  guidance = "",
+): Promise<SealedResult> {
   return parseSealed(
     await fetch(`/api/sealed/build${ai ? "?ai=true" : ""}`, {
       method: "POST",
@@ -241,6 +257,7 @@ export async function buildSealedPool(pool: PoolSummary, ai = false): Promise<Se
         grp_ids: pool.grp_ids,
         set_code: pool.set_code,
         event: pool.event,
+        guidance: guidance.trim(),
       }),
     }),
   );

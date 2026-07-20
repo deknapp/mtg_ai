@@ -611,6 +611,50 @@ table.cost-table {
 }
 .pool-note strong { color: var(--fog); font-weight: 600; }
 .pool-note em { color: var(--fog); font-style: normal; font-weight: 600; }
+
+/* --- AI guidance bar ---------------------------------------------------- */
+.guidance-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 12px clamp(16px, 5vw, 40px) 0;
+}
+.guidance-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 320px;
+  padding: 4px 6px 4px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--stone-800);
+  box-shadow: inset 0 0 0 1px var(--stone-600);
+}
+.guidance-field:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
+.guidance-label {
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mist);
+  white-space: nowrap;
+}
+.guidance-input {
+  flex: 1;
+  font-family: var(--f-body);
+  font-size: 0.95rem;
+  color: var(--fog);
+  background: transparent;
+  border: none;
+  padding: 9px 8px;
+}
+.guidance-input::placeholder { color: var(--mist); opacity: 0.8; }
+.guidance-input:focus { outline: none; }
+.btn.small { font-size: 0.82rem; padding: 7px 12px; }
+.guidance-hint { font-size: 0.82rem; flex: 0 1 auto; }
 .btn {
   font-family: var(--f-body); font-size: 0.9rem; font-weight: 600;
   color: var(--ink); background: var(--accent); border: none;
