@@ -208,11 +208,21 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.
 
 ## Next action
-- Sealed builder is complete AND AI-enabled (Opus deckbuilder), CLI + visual web app, validated
-  live on the real MSH pool. Only the polish backlog remains; nothing is blocked.
+- Sealed builder is complete AND AI-enabled (Opus deckbuilder), CLI + visual web app. This session
+  (2026-07-20) added: **pool picker** (newest≠largest fix), **AI guidance**, **self-healing server
+  spinup**, **readable deck visualizer + no-cache HTML**, and **3-color/splash assessment +
+  Iterate-vs-Fresh AI**. All committed & pushed to `main` (HEAD `829d464`); working tree clean; 37
+  tests pass. Nothing blocked.
+- **OPEN / next to verify:** live-validate the 3-color splash fix — run **✦ Start Fresh with AI** on
+  the current MSH pool and confirm Opus now takes **WU splashing Black** for the Doom Reigns Supreme
+  + Kingpin bombs (assess_splashes surfaces WU+B: 2 bombs, +0.07 power, 3 fixing lands). If it still
+  stops at 2 colors, push the splash prompt harder. (Not yet run — would spend a few cents.)
+  - Note: the UI now has TWO AI buttons — **✦ Start Fresh with AI** and **⟳ Iterate with AI** (the
+    old single "Build/Redo with AI" was split; the AI-guidance entry above predates the split).
 - Model routing: cheap=`claude-haiku-4-5`, strong=`claude-opus-4-8` (adaptive thinking for the AI
   build). AI uses the ANTHROPIC_API_KEY already in `.env` — every AI build spends a few cents.
 - Try it now:
-  - Visual app:  `uv run mtg-ai`  → click **Build with AI**   (or double-click `run.command`)
+  - Visual app:  `uv run mtg-ai`  → pick a pool, then **✦ Start Fresh with AI** (or `run.command`).
+    After a build, edit the "Tell the AI" box and hit **⟳ Iterate with AI** to refine it.
   - CLI (AI):    `uv run mtg-sealed --ai`     ·  free deterministic: drop `--ai`
   - Sample/offline: `uv run mtg-sealed --ai --fixture tests/fixtures/sealed_pool_msh.json`
