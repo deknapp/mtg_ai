@@ -62,7 +62,14 @@ def role(card: Card) -> str:
 
 
 def is_bomb(card: Card) -> bool:
-    return (card.rarity or "").lower() in {"rare", "mythic"} and effective_rating(card) >= BOMB_WR
+    if (card.rarity or "").lower() not in {"rare", "mythic"}:
+        return False
+    # No 17Lands win-rate yet (common on a new set) → treat a rare/mythic as a bomb candidate,
+    # matching the "BOMB?" flag the builder shows and letting selection prioritize it. Once a
+    # rating exists, hold it to the bomb win-rate bar.
+    if card.rating is None:
+        return True
+    return card.rating >= BOMB_WR
 
 
 def castable_in(card: Card, colors: set[Color]) -> bool:

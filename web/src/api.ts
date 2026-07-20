@@ -131,6 +131,7 @@ export interface DeckCard {
   colors: Color[];
   rarity: string | null;
   rating: number | null;
+  rating_source: string | null; // which 17Lands format the rating came from
   is_bomb: boolean;
   role: string; // creature | removal | other
 }
@@ -138,6 +139,8 @@ export interface DeckCard {
 export interface Manabase {
   lands: Record<string, number>;
   sources: Record<string, number>;
+  fixing: string[];
+  splash_colors: Color[];
   total_lands: number;
   feasible: boolean;
   notes: string[];

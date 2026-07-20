@@ -42,7 +42,8 @@ class DeckCard(BaseModel):
     cmc: float
     colors: list[Color] = Field(default_factory=list)
     rarity: str | None = None
-    rating: float | None = None  # 17Lands GIH win-rate (or inferred baseline)
+    rating: float | None = None  # 17Lands GIH win-rate
+    rating_source: str | None = None  # which 17Lands format it came from (event-sealed/draft/…)
     is_bomb: bool = False
     role: str = "other"  # creature | removal | other
 
@@ -52,6 +53,8 @@ class Manabase(BaseModel):
 
     lands: dict[str, int] = Field(default_factory=dict)  # land name -> count
     sources: dict[str, int] = Field(default_factory=dict)  # color letter -> source count
+    fixing: list[str] = Field(default_factory=list)  # nonbasic fixing lands used from the pool
+    splash_colors: list[Color] = Field(default_factory=list)  # colors played as a light splash
     total_lands: int = 0
     feasible: bool = True
     notes: list[str] = Field(default_factory=list)

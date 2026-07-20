@@ -2,18 +2,38 @@ import type { DeckCard, SealedResult } from "../api";
 import { COLOR_HEX, COLOR_NAME } from "../theme";
 
 const CURVE_KEYS = ["1", "2", "3", "4", "5", "6+"];
+const SRC_SHORT: Record<string, string> = {
+  ArenaDirect_Sealed: "event", Sealed: "sealed", TradSealed: "sealed",
+  PremierDraft: "draft", TradDraft: "draft", QuickDraft: "draft",
+};
 
 function ratingPct(r: number | null): string {
   return r === null ? "—" : `${(r * 100).toFixed(1)}%`;
 }
 
+/** Win-rate with a source-tag, or a bomb/no-data marker for cards 17Lands hasn't rated yet. */
+function ratingLabel(c: DeckCard): { text: string; title: string } {
+  if (c.rating !== null) {
+    const src = SRC_SHORT[c.rating_source ?? ""] ?? c.rating_source ?? "";
+    return {
+      text: `${(c.rating * 100).toFixed(1)}% ${src}`,
+      title: `17Lands games-in-hand win rate, source: ${c.rating_source ?? "unknown"}`,
+    };
+  }
+  const bomb = (c.rarity ?? "").toLowerCase() === "rare" || (c.rarity ?? "").toLowerCase() === "mythic";
+  return bomb
+    ? { text: "no data", title: "No 17Lands win-rate yet — judged from the card (bomb)" }
+    : { text: "—", title: "No 17Lands win-rate" };
+}
+
 function CardRow({ c }: { c: DeckCard }) {
   const tag = c.is_bomb ? "★" : c.role === "removal" ? "✜" : "";
+  const r = ratingLabel(c);
   return (
     <li className={`deck-card${c.is_bomb ? " bomb" : ""}`}>
       <span className="dc-tag" aria-hidden>{tag}</span>
       <span className="dc-name">{c.name}</span>
-      <span className="dc-rating muted">{ratingPct(c.rating)}</span>
+      <span className="dc-rating muted" title={r.title}>{r.text}</span>
     </li>
   );
 }
@@ -87,6 +107,10 @@ export function SealedView({ result }: { result: SealedResult }) {
               <li key={land}><b>{n}×</b> {land}</li>
             ))}
           </ul>
+          {deck.manabase.splash_colors.length > 0 && (
+            <p className="muted">Splash: {deck.manabase.splash_colors.map((c) => COLOR_NAME[c]).join(", ")}
+              {deck.manabase.fixing.length > 0 && <> — off {deck.manabase.fixing.join(", ")}</>}</p>
+          )}
           <ul className="notes muted">
             {deck.manabase.notes.map((n, i) => <li key={i}>{n}</li>)}
           </ul>

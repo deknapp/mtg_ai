@@ -7,7 +7,7 @@ from mtg_ai.core.models import Card, Color
 from mtg_ai.sealed.build import build_deck, score_color_pairs, select_spells
 from mtg_ai.sealed.enrichment import SealedEnrichment
 from mtg_ai.sealed.ingest_log import parse_pool
-from mtg_ai.sealed.manabase import build_manabase, recommended_sources
+from mtg_ai.sealed.manabase import build_manabase, sources_needed
 from mtg_ai.sealed.models import Pool
 from mtg_ai.sealed.pipeline import SealedPipeline
 from mtg_ai.sealed.ingest_log import ParsedPool
@@ -76,8 +76,10 @@ def test_pip_counts_and_removal_and_bomb():
 # --- manabase -----------------------------------------------------------------------------
 
 
-def test_recommended_sources_double_pip_needs_more():
-    assert recommended_sources(2, 3.0) > recommended_sources(1, 3.0)
+def test_sources_needed_double_pip_more_and_late_splash_cheap():
+    assert sources_needed(2, 3.0) > sources_needed(1, 3.0)
+    # A late single-pip splash needs far fewer sources than an on-curve one (Karsten splash logic).
+    assert sources_needed(1, 6.0) <= 6 < sources_needed(1, 2.0)
 
 
 def test_manabase_splits_by_pip_demand_and_flags_tight_double_pip():
@@ -90,6 +92,44 @@ def test_manabase_splits_by_pip_demand_and_flags_tight_double_pip():
     # Loading up on Islands for double-blue starves White -> an honest feasibility warning.
     assert mb.feasible is False
     assert any("recommended" in n for n in mb.notes)
+
+
+def test_manabase_supports_splash_off_fixing_land():
+    # U/R base + one late single-pip white bomb, with a rainbow fixing land in the pool.
+    spells = [_card(f"U{i}", "{1}{U}", [Color.BLUE], 2) for i in range(8)]
+    spells += [_card(f"R{i}", "{1}{R}", [Color.RED], 2) for i in range(8)]
+    spells += [_card("White Bomb", "{4}{W}", [Color.WHITE], 5, rarity="mythic")]
+    rainbow = Card(name="Rainbow Land", type_line="Land", produced_mana=list(Color), arena_id=1)
+    pool = Pool(set_code="tst", cards=spells + [rainbow])
+    mb = build_manabase(spells, [Color.BLUE, Color.RED, Color.WHITE], pool.cards)
+    assert Color.WHITE in mb.splash_colors          # white is recognized as a light splash
+    assert "Rainbow Land" in mb.fixing              # the fixing land is pulled in
+    assert mb.sources["W"] >= 1                      # the fixing land supplies a white source
+    assert mb.total_lands == 17
+
+
+def test_ratings_index_prefers_event_sealed_per_card(tmp_path):
+    import sqlite3
+
+    from mtg_ai.sealed.ratings import RatingsCache
+    cache = RatingsCache(tmp_path / "r.sqlite")
+    con = sqlite3.connect(cache.db_path)
+
+    def ins(fmt, mid, wr):
+        con.execute(
+            "INSERT INTO card_ratings (set_code,format,name,mtga_id,rarity,color,game_count,"
+            "gih_wr,iwd,fetched_at) VALUES ('tst',?,?,?,'common','U',100,?,0,'now')",
+            (fmt, f"c{mid}", mid, wr),
+        )
+    ins("ArenaDirect_Sealed", 1, 0.60)   # card 1 present in both event-sealed and draft
+    ins("PremierDraft", 1, 0.55)
+    ins("PremierDraft", 2, 0.58)          # card 2 only in draft
+    con.commit(); con.close()
+
+    idx = cache.build_index("tst")
+    assert idx.get(1).source == "ArenaDirect_Sealed" and abs(idx.get(1).wr - 0.60) < 1e-9
+    assert idx.get(2).source == "PremierDraft"       # per-card fallback to draft
+    assert "ArenaDirect_Sealed" in idx.formats_present and "PremierDraft" in idx.formats_present
 
 
 def test_manabase_even_split_when_no_pips():

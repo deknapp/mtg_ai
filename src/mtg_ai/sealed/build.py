@@ -102,6 +102,7 @@ def _deck_card(card: Card) -> DeckCard:
         colors=card.colors,
         rarity=card.rarity,
         rating=card.rating,
+        rating_source=card.rating_source,
         is_bomb=is_bomb(card),
         role=role(card),
     )
@@ -109,7 +110,7 @@ def _deck_card(card: Card) -> DeckCard:
 
 def _assemble(pool: Pool, colors: list[Color], spells: list[Card], rationale: str) -> SealedDeck:
     """Turn a chosen set of spells into a full 40-card deck (manabase, curve, composition)."""
-    manabase = build_manabase(spells, colors)
+    manabase = build_manabase(spells, colors, pool.cards)  # pool.cards → fixing lands for splashes
     deck_cards = [_deck_card(c) for c in spells]
 
     cset = set(colors)

@@ -109,11 +109,13 @@ def card_from_scryfall(raw: dict) -> Card | None:
         oracle = " // ".join(f.get("oracle_text", "") for f in raw["card_faces"]).strip(" /")
 
     arena_id = raw.get("arena_id")
+    produced = [Color(c) for c in (raw.get("produced_mana") or []) if c in Color._value2member_map_]
     return Card(
         name=name,
         mana_cost=_first(raw, "mana_cost"),
         cmc=float(raw.get("cmc") or 0.0),
         colors=parsed_colors,
+        produced_mana=produced,
         type_line=raw.get("type_line") or _first(raw, "type_line"),
         oracle_text=oracle,
         rarity=raw.get("rarity"),

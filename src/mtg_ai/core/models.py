@@ -28,6 +28,9 @@ class Card(BaseModel):
     mana_cost: str | None = None
     cmc: float = 0.0
     colors: list[Color] = Field(default_factory=list)
+    # Colors of mana this card can produce (from Scryfall `produced_mana`). Key for lands: it's
+    # how we know what a nonbasic fixing land taps for, so a splash can be scored honestly.
+    produced_mana: list[Color] = Field(default_factory=list)
     type_line: str | None = None
     oracle_text: str | None = None
     rarity: str | None = None
@@ -35,8 +38,13 @@ class Card(BaseModel):
     toughness: str | None = None
     # Arena's card id (Scryfall `arena_id`). Lets us join the Arena log + 17Lands by id, not name.
     arena_id: int | None = None
-    # Optional limited-format signal (e.g. 17Lands GIH win-rate), filled in by enrichment.
+    # Optional limited-format signal (17Lands GIH win-rate), filled in by enrichment.
     rating: float | None = None
+    # Which 17Lands format the rating came from (e.g. "ArenaDirect_Sealed", "PremierDraft") and
+    # how many games back it — so a sealed number and a draft-proxy number are never confused,
+    # and low-sample numbers can be down-weighted.
+    rating_source: str | None = None
+    rating_games: int | None = None
     # True when the identifier could not be resolved against the data layer.
     unresolved: bool = False
 

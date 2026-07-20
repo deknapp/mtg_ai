@@ -1,7 +1,8 @@
 """Sealed enrichment (deterministic, no LLM).
 
 Resolves the pool's Arena ids into real cards via the data layer and attaches each card's
-17Lands rating (GIH win-rate) by id. The result is a fully-typed `Pool` the builder reasons over.
+best-available 17Lands rating — the win rate, the format it came from, and its game count —
+from the per-card RatingsIndex. The result is a fully-typed `Pool` the builder reasons over.
 """
 
 from __future__ import annotations
@@ -9,15 +10,15 @@ from __future__ import annotations
 from ..core.data import CardRepository
 from .ingest_log import ParsedPool
 from .models import Pool
-from .ratings import RatingsResult
+from .ratings import RatingsIndex
 
 
 class SealedEnrichment:
     name = "enrichment"
 
-    def __init__(self, repository: CardRepository, ratings: RatingsResult | None = None) -> None:
+    def __init__(self, repository: CardRepository, ratings: RatingsIndex | None = None) -> None:
         self._repo = repository
-        self._rating_by_id = ratings.by_arena_id() if ratings else {}
+        self._ratings = ratings
 
     def run(self, parsed: ParsedPool, set_code: str) -> Pool:
         cards = []
@@ -27,9 +28,14 @@ class SealedEnrichment:
             if card is None:
                 unresolved.append(gid)
                 continue
-            rating = self._rating_by_id.get(card.arena_id if card.arena_id is not None else gid)
+            rating = self._ratings.get(card.arena_id if card.arena_id is not None else gid) \
+                if self._ratings else None
             if rating is not None:
-                card = card.model_copy(update={"rating": rating})
+                card = card.model_copy(update={
+                    "rating": rating.wr,
+                    "rating_source": rating.source,
+                    "rating_games": rating.games,
+                })
             cards.append(card)
         return Pool(
             set_code=parsed.set_code or set_code,

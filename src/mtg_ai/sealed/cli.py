@@ -22,6 +22,18 @@ from .models import SealedResult
 from .pipeline import build_sealed_pipeline, load_ratings
 
 _COLOR_NAMES = {"W": "White", "U": "Blue", "B": "Black", "R": "Red", "G": "Green"}
+_SRC_SHORT = {"ArenaDirect_Sealed": "event", "Sealed": "sealed", "TradSealed": "sealed",
+              "PremierDraft": "draft", "TradDraft": "draft", "QuickDraft": "draft"}
+
+
+def _rating_str(dc) -> str:
+    """A card's win-rate with its source tag, e.g. '56.6% event', or a bomb/no-data marker."""
+    if dc.rating is not None:
+        src = _SRC_SHORT.get(dc.rating_source or "", dc.rating_source or "")
+        return f"{dc.rating*100:4.1f}% {src:<6}"
+    if (dc.rarity or "").lower() in {"rare", "mythic"}:
+        return "  --   BOMB? "
+    return "  --        "
 
 
 def _render(result: SealedResult) -> str:
@@ -57,20 +69,18 @@ def _render(result: SealedResult) -> str:
             f"{s.removal_count} removal  {s.creature_count} creatures"
         )
 
-    lines += ["", "  ── Spells (by curve) ──"]
+    lines += ["", "  ── Spells (by curve) ──   [★ bomb  ✜ removal | win-rate source: "
+              "event=your Arena Direct sealed, sealed=generic, draft=proxy] ──"]
     for dc in deck.spells:
         tag = "★" if dc.is_bomb else ("✜" if dc.role == "removal" else " ")
-        rating = f"{dc.rating*100:4.1f}%" if dc.rating is not None else "  -- "
-        lines.append(
-            f"    {tag} {int(dc.cmc)}  {dc.name:<32} {rating}  {dc.rarity or ''}"
-        )
+        lines.append(f"    {tag} {int(dc.cmc)}  {dc.name:<32} {_rating_str(dc)}  {dc.rarity or ''}")
 
     lines += ["", "  ── Manabase ──"]
     for land, n in deck.manabase.lands.items():
         lines.append(f"    {n:>2}x {land}")
-    lines.append(
-        "    curve: " + "  ".join(f"{k}:{v}" for k, v in deck.curve.items())
-    )
+    lines.append("    curve: " + "  ".join(f"{k}:{v}" for k, v in deck.curve.items()))
+    if deck.manabase.splash_colors:
+        lines.append("    splash: " + "/".join(c.value for c in deck.manabase.splash_colors))
     feasible = "✓ feasible" if deck.manabase.feasible else "⚠ tight"
     lines.append(f"    mana: {feasible}")
     for note in deck.manabase.notes:
@@ -79,8 +89,7 @@ def _render(result: SealedResult) -> str:
     if deck.sideboard_highlights:
         lines += ["", "  ── Next best (sideboard) ──"]
         for dc in deck.sideboard_highlights:
-            r = f"{dc.rating*100:4.1f}%" if dc.rating is not None else "  -- "
-            lines.append(f"    {dc.name:<32} {r}  {dc.rarity or ''}")
+            lines.append(f"    {dc.name:<32} {_rating_str(dc)}  {dc.rarity or ''}")
 
     lines += ["", "  Pipeline:"]
     for c in result.cost_log:
