@@ -108,10 +108,35 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
     mythic bombs (Tony Stark + Ultron), explained the artifact engine, feasible mana. Committed `1c2c701`.
 11. ~~**Real-model validation**~~ ✅ DONE — Nathan opted in; live Opus builds confirmed via CLI + API.
 
+### Quantitative-data upgrade (2026-07-19, commit `3341a06`) — DONE
+- **Per-card 17Lands ladder** (`ratings.py`): default `ArenaDirect_Sealed` (the actual event),
+  per-card fallback → Sealed → PremierDraft, each number tagged with source + game-count.
+- **AI scaffold** (`deckbuilder_llm.py`): color-pair scores, source-tagged win-rates, fixing lands
+  + produced colors, explicit BOMB flags, sealed framing — all in the prompt.
+- **Splash-aware Karsten manabase** (`manabase.py` + `docs/karsten-manabase.md`): counts pool
+  fixing lands as sources (Scryfall `produced_mana` now ingested), main/splash classification,
+  Karsten 40-card thresholds (late single-pip splash ≈ 6 sources).
+- **Provenance** in CLI + UI (event/sealed/draft/no-data tags, splash + fixing shown). Dropped ALSA.
+
+### KEY 17Lands data findings (don't re-derive — this cost hours)
+- MSH released on Arena **2026-06-23** (a month ago), NOT July 17 — that date in the event name is
+  the Arena Direct event, not the set release. Verified via `https://www.17lands.com/data/filters`
+  (`start_dates.MSH`).
+- The live `card_ratings/data` endpoint (what we + every draft tool use) serves a **rolling/scoped
+  view, not full all-time** — proven: FIN (huge set) returns ~135 games / 0 win-rates; `start_date`
+  and `time_period` params are **ignored**. So MSH rares/bombs have **no win-rate in any format yet**.
+- Canonical full-history source = **17Lands S3 public datasets**:
+  `https://17lands-public.s3.amazonaws.com/analysis_data/{game_data,draft_data}/..._public.{SET}.{FMT}.csv.gz`
+  (raw per-game rows you aggregate). **MSH game_data is NOT published yet** (only draft_data, 57.6MB,
+  updated Jul 7) — verified game_data exists for WOE/DSK but 403s for MSH. So all-time GIHWR for MSH
+  bombs genuinely isn't available anywhere until 17Lands posts it. `SEALED_LADDER` is ordered so an
+  S3 aggregator can be added on top later. Community reference tool: `bstaple1/MTGA_Draft_17Lands`.
+
 ### Polish backlog (nice-to-have)
-- Curve card names truncate hard in narrow columns — add a hover tooltip / full name on wider screens.
+- Curve card names truncate hard in narrow columns (worse now with source tags) — add a tooltip / full name.
 - Removal detection regex may under-count; revisit with set mechanics.
-- Re-check 17Lands for MSH *Sealed* win-rates later (currently PremierDraft fallback).
+- Manabase includes off-color duals (e.g. R/W land in WU) as a source; doesn't model tapped lands / ramp fixing.
+- Deferred: S3 game-data download+aggregation pipeline (build when 17Lands posts MSH game data).
 
 ### Known small items / polish
 - 2 of 84 pool ids (105176, 105182) don't resolve on Scryfall's arena endpoint (basic lands / art
