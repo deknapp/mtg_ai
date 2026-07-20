@@ -26,7 +26,7 @@ from .draft.models import PipelineResult
 from .draft.pipeline import build_pipeline
 from .sealed.ingest_log import ArenaLogError, ParsedPool, load_pool, load_pool_fixture
 from .sealed.models import SealedResult
-from .sealed.pipeline import build_sealed_pipeline, load_ratings
+from .sealed.pipeline import ai_available, build_sealed_pipeline, load_ratings
 
 # The built frontend (web/dist), if it has been produced by `npm run build`.
 _DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
@@ -95,28 +95,39 @@ async def recommend(
 # The sealed build is deterministic (no LLM), so these are always free — no live toggle needed.
 
 
-def _run_sealed(parsed: ParsedPool) -> SealedResult:
+def _run_sealed(parsed: ParsedPool, use_ai: bool = False) -> SealedResult:
     settings = Settings()
     if parsed.set_code:
         settings.default_set = parsed.set_code
     ratings = load_ratings(settings)  # cached; network only on first fetch
-    return build_sealed_pipeline(settings, ratings=ratings).run(parsed)
+    return build_sealed_pipeline(settings, ratings=ratings, use_llm=use_ai).run(parsed)
+
+
+@app.get("/api/sealed/status")
+def sealed_status() -> dict:
+    """Tell the UI whether the AI build is available (an Anthropic API key is configured)."""
+    return {"ai_available": ai_available()}
 
 
 @app.get("/api/sealed/demo", response_model=SealedResult)
-def sealed_demo() -> SealedResult:
-    """Build from the bundled sample pool — always works offline, no Arena needed."""
-    return _run_sealed(load_pool_fixture(_FIXTURE))
+def sealed_demo(
+    ai: bool = Query(False, description="Let the AI reason over the build (uses the API key)."),
+) -> SealedResult:
+    """Build from the bundled sample pool — deterministic by default; AI when ai=true."""
+    return _run_sealed(load_pool_fixture(_FIXTURE), use_ai=ai and ai_available())
 
 
 @app.get("/api/sealed/build", response_model=SealedResult)
-def sealed_build(log: str | None = Query(None, description="Path to a specific Arena Player.log.")):
+def sealed_build(
+    log: str | None = Query(None, description="Path to a specific Arena Player.log."),
+    ai: bool = Query(False, description="Let the AI reason over the build (uses the API key)."),
+):
     """Build from the player's live Arena sealed pool (auto-found log)."""
     try:
         parsed = load_pool(log)
     except ArenaLogError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    return _run_sealed(parsed)
+    return _run_sealed(parsed, use_ai=ai and ai_available())
 
 
 # Serve the built SPA when present. Mounted LAST so the /api/* routes above take precedence.

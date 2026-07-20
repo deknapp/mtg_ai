@@ -36,6 +36,9 @@ export function SealedView({ result }: { result: SealedResult }) {
             <span key={c} className="pip" style={{ background: COLOR_HEX[c] }} title={COLOR_NAME[c]} />
           ))}
           <h1 className="hero-title">{chosen_colors.map((c) => COLOR_NAME[c]).join(" / ")}</h1>
+          <span className={`built-by ${result.built_by === "ai" ? "ai" : ""}`}>
+            {result.built_by === "ai" ? "✦ AI reasoned" : "optimizer"}
+          </span>
         </div>
         <div className="hero-stats">
           <b>{deck.total_cards}-card deck</b>
@@ -45,6 +48,11 @@ export function SealedView({ result }: { result: SealedResult }) {
           <span className="stat">{deck.bombs.length} bomb{deck.bombs.length === 1 ? "" : "s"}</span>
         </div>
         <p className="hero-rationale">{deck.rationale}</p>
+        {result.synergies.length > 0 && (
+          <ul className="synergies">
+            {result.synergies.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        )}
         {pool.event && <p className="muted pool-line">Pool: {pool.cards.length} cards · {pool.event}</p>}
       </section>
 

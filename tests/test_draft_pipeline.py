@@ -42,8 +42,8 @@ def test_cost_log_covers_every_llm_agent():
     assert agents == {"extraction", "archetype", "evaluation", "synthesis"}
     # Synthesis is routed to the strong tier; the narrow steps to the cheap tier.
     by_agent = {c.agent: c.model for c in result.cost_log}
-    assert "sonnet" in by_agent["synthesis"]
-    assert "haiku" in by_agent["extraction"]
+    assert "opus" in by_agent["synthesis"]      # strong tier
+    assert "haiku" in by_agent["extraction"]    # cheap tier
 
 
 def test_enrichment_flags_unknown_cards():

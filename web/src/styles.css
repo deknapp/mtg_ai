@@ -639,3 +639,12 @@ table.cost-table {
 .sideboard li, .pipeline li { display: flex; justify-content: space-between; gap: 10px; font-size: 0.9rem; }
 .pipeline .agent { font-weight: 600; }
 .error-detail { white-space: pre-wrap; font-family: var(--f-body); font-size: 0.9rem; margin: 8px 0; }
+
+/* --- AI build affordances -------------------------------------------------- */
+.built-by { font-family: var(--f-body); font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 3px 9px; border-radius: 20px; margin-left: 8px;
+  background: rgba(0,0,0,0.08); color: #6b6577; }
+.built-by.ai { background: var(--accent-gradient); color: var(--ink); }
+.synergies { margin: 12px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.synergies li { font-size: 0.95rem; line-height: 1.4; }
+.btn:disabled { opacity: 0.5; cursor: default; }

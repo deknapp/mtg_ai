@@ -40,11 +40,16 @@ def _render(result: SealedResult) -> str:
         f"({len(deck.spells)} spells + {deck.manabase.total_lands} lands)",
         f"  Creatures {deck.creatures} | Removal {deck.removal} | Bombs {len(deck.bombs)}",
         "",
+        f"  Built by : {'AI (reasoned)' if result.built_by == 'ai' else 'deterministic optimizer'}",
+        "",
         "  Rationale:",
         f"    {deck.rationale}",
-        "",
-        "  Top color pairs considered:",
     ]
+    if result.synergies:
+        lines.append("")
+        lines.append("  Synergies:")
+        lines += [f"    - {s}" for s in result.synergies]
+    lines += ["", "  Top color pairs considered:"]
     for s in result.colorpair_scores[:4]:
         lines.append(
             f"    {s.label:>2}  score {s.deck_score:6.2f}  "
@@ -89,6 +94,8 @@ def main() -> None:
     parser.add_argument("--log", default=None, help="Path to a specific Arena Player.log.")
     parser.add_argument("--fixture", default=None, help="Build from a saved pool JSON fixture.")
     parser.add_argument("--reload", action="store_true", help="Re-fetch 17Lands data first.")
+    parser.add_argument("--ai", action="store_true",
+                        help="Let the AI reason over the build (uses your Anthropic API key).")
     ns = parser.parse_args()
 
     settings = get_settings()
@@ -102,7 +109,9 @@ def main() -> None:
         settings.default_set = parsed.set_code
 
     ratings = load_ratings(settings, reload=ns.reload)
-    pipeline = build_sealed_pipeline(settings, ratings=ratings)
+    pipeline = build_sealed_pipeline(settings, ratings=ratings, use_llm=ns.ai)
+    if ns.ai:
+        print("  Reasoning over your pool with the AI deckbuilder…", file=sys.stderr)
     result = pipeline.run(parsed)
     print(_render(result))
 

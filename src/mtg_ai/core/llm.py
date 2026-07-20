@@ -42,12 +42,16 @@ class LLM(ABC):
         user: str,
         context: dict,
         response_model: type[T],
+        max_tokens: int = 1024,
+        thinking: bool = False,
     ) -> tuple[T, CostEntry]:
         """Return a validated `response_model` instance and the call's cost accounting.
 
         `system` and `user` are the rendered prompts (used by real backends).
         `context` carries the structured payload (and any image bytes) a mock backend needs
         to synthesize schema-valid output without a model call.
+        `thinking` turns on adaptive extended thinking (reasoning steps); raise `max_tokens`
+        to give thinking room. The mock backend ignores both.
         """
         raise NotImplementedError
 
@@ -74,6 +78,8 @@ class MockLLM(LLM):
         user: str,
         context: dict,
         response_model: type[T],
+        max_tokens: int = 1024,
+        thinking: bool = False,
     ) -> tuple[T, CostEntry]:
         handler = self._handlers.get(agent)
         if handler is None:
@@ -118,6 +124,8 @@ class AnthropicLLM(LLM):
         user: str,
         context: dict,
         response_model: type[T],
+        max_tokens: int = 1024,
+        thinking: bool = False,
     ) -> tuple[T, CostEntry]:
         schema = response_model.model_json_schema()
         instruction = (
@@ -145,11 +153,16 @@ class AnthropicLLM(LLM):
         # Models occasionally answer in prose (e.g. "I don't see any cards...") instead of the
         # requested JSON. Rather than crash the whole pipeline on the parse, retry once with the
         # bad reply fed back and a strict correction. Cost accrues across attempts.
+        # Adaptive thinking lets the model reason before answering (used for the sealed
+        # deckbuilder). Only current Opus/Sonnet models accept it, so it's opt-in per call.
+        extra: dict = {"thinking": {"type": "adaptive"}} if thinking else {}
+
         in_tok = out_tok = cached_tok = 0
         last_text = ""
         for attempt in range(2):
             resp = self._client.messages.create(
-                model=model, max_tokens=1024, system=system_blocks, messages=messages
+                model=model, max_tokens=max_tokens, system=system_blocks, messages=messages,
+                **extra,
             )
             usage = resp.usage
             in_tok += getattr(usage, "input_tokens", 0)

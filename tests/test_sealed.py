@@ -156,6 +156,37 @@ def test_pipeline_end_to_end_offline():
     assert {c.agent for c in result.cost_log} == {"enrichment", "colorpairs", "deckbuilder"}
 
 
+def test_ai_deckbuilder_path_with_mock_llm():
+    # The AI path runs end-to-end on the mock backend (no API cost) and yields a legal deck.
+    from mtg_ai.core.llm import MockLLM
+    from mtg_ai.sealed.mock_backend import HANDLERS
+
+    pool = _mono_pool(Color.GREEN, "G")
+    repo = _InMemoryRepo(pool.cards)
+    parsed = ParsedPool(grp_ids=[c.arena_id for c in pool.cards], set_code="tst")
+
+    pipe = SealedPipeline(repo, Settings(default_set="tst"), ratings=None,
+                          llm=MockLLM(HANDLERS), use_llm=True)
+    result = pipe.run(parsed)
+    assert result.built_by == "ai"
+    assert result.deck.total_cards == 40
+    assert len(result.deck.spells) == 23
+    assert any(c.agent == "deckbuilder" for c in result.cost_log)
+
+
+def test_resolve_names_honors_duplicates_and_fuzzy():
+    from mtg_ai.sealed.build import resolve_names
+
+    pool = Pool(set_code="tst", cards=[
+        _card("Brave Brawler", "{1}{W}", [Color.WHITE], 2, arena_id=1),
+        _card("Brave Brawler", "{1}{W}", [Color.WHITE], 2, arena_id=2),
+        _card("Depower", "{U}", [Color.BLUE], 1, type_line="Instant", arena_id=3),
+    ])
+    # duplicate name pulls two physical copies; a slight misspelling still resolves
+    got = resolve_names(pool, ["Brave Brawler", "Brave Brawler", "Depowr"])
+    assert [c.name for c in got] == ["Brave Brawler", "Brave Brawler", "Depower"]
+
+
 def test_enrichment_flags_unresolved_ids():
     pool = _mono_pool(Color.RED, "R", n=3)
     repo = _InMemoryRepo(pool.cards)

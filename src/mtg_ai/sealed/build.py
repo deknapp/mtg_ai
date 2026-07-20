@@ -107,9 +107,8 @@ def _deck_card(card: Card) -> DeckCard:
     )
 
 
-def build_deck(pool: Pool, colors: list[Color], rationale: str = "") -> SealedDeck:
-    """Assemble the full 40-card deck for `colors`: spells + manabase + curve + composition."""
-    spells = select_spells(pool, colors)
+def _assemble(pool: Pool, colors: list[Color], spells: list[Card], rationale: str) -> SealedDeck:
+    """Turn a chosen set of spells into a full 40-card deck (manabase, curve, composition)."""
     manabase = build_manabase(spells, colors)
     deck_cards = [_deck_card(c) for c in spells]
 
@@ -135,3 +134,65 @@ def build_deck(pool: Pool, colors: list[Color], rationale: str = "") -> SealedDe
         sideboard_highlights=sideboard,
         rationale=rationale,
     )
+
+
+def build_deck(pool: Pool, colors: list[Color], rationale: str = "") -> SealedDeck:
+    """Deterministic build: pick the best 23 spells for `colors`, then assemble."""
+    return _assemble(pool, colors, select_spells(pool, colors), rationale)
+
+
+def resolve_names(pool: Pool, names: list[str]) -> list[Card]:
+    """Map the AI's chosen card names back to pool cards, honoring duplicate copies.
+
+    Exact (case-insensitive) match first, then a fuzzy fallback for minor misspellings. Each
+    physical copy in the pool is consumed at most once, so a name listed twice pulls two copies.
+    """
+    from difflib import get_close_matches
+
+    remaining = list(pool.spells)
+    by_lower: dict[str, list[int]] = {}
+    for i, c in enumerate(remaining):
+        by_lower.setdefault(c.name.lower(), []).append(i)
+    used: set[int] = set()
+
+    def take(idxs: list[int]) -> Card | None:
+        for i in idxs:
+            if i not in used:
+                used.add(i)
+                return remaining[i]
+        return None
+
+    chosen: list[Card] = []
+    for name in names:
+        key = name.strip().lower()
+        card = take(by_lower.get(key, []))
+        if card is None:  # fuzzy fallback against unused names
+            avail = {c.name.lower() for i, c in enumerate(remaining) if i not in used}
+            m = get_close_matches(key, list(avail), n=1, cutoff=0.8)
+            if m:
+                card = take(by_lower.get(m[0], []))
+        if card is not None:
+            chosen.append(card)
+    return chosen
+
+
+def assemble_deck(pool: Pool, colors: list[Color], names: list[str], rationale: str) -> SealedDeck:
+    """AI path: resolve the AI's chosen names, top up / trim to 23 spells, then assemble.
+
+    Keeps mana feasibility rigorous — the deterministic manabase optimizer runs on whatever
+    colors and spells the AI committed to.
+    """
+    spells = resolve_names(pool, names)
+    cset = set(colors)
+    if len(spells) < DECK_SPELLS:
+        # Top up with the best remaining castable spells the AI didn't name.
+        extra = sorted(
+            (c for c in pool.spells if castable_in(c, cset) and c not in spells),
+            key=_sort_key,
+            reverse=True,
+        )
+        spells += extra[: DECK_SPELLS - len(spells)]
+    if len(spells) > DECK_SPELLS:
+        spells = sorted(spells, key=_sort_key, reverse=True)[:DECK_SPELLS]
+    spells = sorted(spells, key=lambda c: (c.cmc, -effective_rating(c)))
+    return _assemble(pool, colors, spells, rationale)

@@ -169,6 +169,8 @@ export interface SealedResult {
   chosen_colors: Color[];
   deck: SealedDeck;
   cost_log: CostEntry[];
+  built_by: string; // "deterministic" | "ai"
+  synergies: string[];
 }
 
 async function parseSealed(res: Response): Promise<SealedResult> {
@@ -185,12 +187,19 @@ async function parseSealed(res: Response): Promise<SealedResult> {
   return res.json();
 }
 
-/** Build from the bundled sample pool (always works offline, no Arena needed). */
-export async function fetchSealedDemo(): Promise<SealedResult> {
-  return parseSealed(await fetch("/api/sealed/demo"));
+/** Whether the AI build is available (an Anthropic API key is configured on the backend). */
+export async function fetchSealedStatus(): Promise<{ ai_available: boolean }> {
+  const res = await fetch("/api/sealed/status");
+  if (!res.ok) return { ai_available: false };
+  return res.json();
 }
 
-/** Build from the player's live Arena sealed pool (auto-found log). */
-export async function buildSealed(): Promise<SealedResult> {
-  return parseSealed(await fetch("/api/sealed/build"));
+/** Build from the bundled sample pool. `ai` lets Opus reason over the build. */
+export async function fetchSealedDemo(ai = false): Promise<SealedResult> {
+  return parseSealed(await fetch(`/api/sealed/demo${ai ? "?ai=true" : ""}`));
+}
+
+/** Build from the player's live Arena sealed pool (auto-found log). `ai` opts into reasoning. */
+export async function buildSealed(ai = false): Promise<SealedResult> {
+  return parseSealed(await fetch(`/api/sealed/build${ai ? "?ai=true" : ""}`));
 }

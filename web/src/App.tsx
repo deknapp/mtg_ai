@@ -1,20 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
-import { buildSealed, fetchSealedDemo, type SealedResult } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { buildSealed, fetchSealedDemo, fetchSealedStatus, type SealedResult } from "./api";
 import { applyAccent } from "./theme";
 import { SealedView } from "./components/SealedView";
 
 export default function App() {
   const [result, setResult] = useState<SealedResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyMsg, setBusyMsg] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const started = useRef(false);
 
-  // Re-tint the whole interface from the built deck's colors (the signature element).
+  useEffect(() => {
+    fetchSealedStatus().then((s) => setAiAvailable(s.ai_available)).catch(() => {});
+  }, []);
+
   useEffect(() => {
     applyAccent(result?.chosen_colors ?? []);
   }, [result]);
 
-  const run = useCallback(async (fn: () => Promise<SealedResult>) => {
+  const run = useCallback(async (fn: () => Promise<SealedResult>, msg: string) => {
     setBusy(true);
+    setBusyMsg(msg);
     setError(null);
     try {
       setResult(await fn());
@@ -25,9 +32,11 @@ export default function App() {
     }
   }, []);
 
-  // Open on the sample build so there's always something on screen.
+  // Open on the deterministic sample so there's always something on screen (free, instant).
   useEffect(() => {
-    run(fetchSealedDemo);
+    if (started.current) return;
+    started.current = true;
+    run(() => fetchSealedDemo(false), "Building the sample deck…");
   }, [run]);
 
   return (
@@ -38,25 +47,35 @@ export default function App() {
           <span className="brand-name">MTG AI · Sealed</span>
         </div>
         <div className="actions">
-          <button className="btn" disabled={busy} onClick={() => run(buildSealed)}>
-            Build from my Arena pool
+          <button
+            className="btn"
+            disabled={busy || !aiAvailable}
+            title={aiAvailable ? "Opus reasons over your pool (~15s, uses your API key)"
+              : "Add ANTHROPIC_API_KEY to .env to enable AI builds"}
+            onClick={() => run(() => buildSealed(true), "Reasoning over your pool with Opus… (~15s)")}
+          >
+            ✦ Build with AI{!aiAvailable && <span className="muted"> (no key)</span>}
           </button>
-          <button className="btn ghost" disabled={busy} onClick={() => run(fetchSealedDemo)}>
-            Sample pool
+          <button className="btn ghost" disabled={busy}
+            onClick={() => run(() => buildSealed(false), "Building from your pool…")}>
+            Quick build
+          </button>
+          <button className="btn ghost" disabled={busy}
+            onClick={() => run(() => fetchSealedDemo(aiAvailable), aiAvailable
+              ? "Reasoning over the sample pool with Opus…" : "Building the sample deck…")}>
+            Sample
           </button>
         </div>
       </header>
 
       <main className="main">
-        {busy && <div className="empty">Building the best deck from your pool…</div>}
+        {busy && <div className="empty">{busyMsg}</div>}
 
         {error && !busy && (
           <div className="error" role="alert">
             <strong>Couldn’t read your Arena pool.</strong>
             <pre className="error-detail">{error}</pre>
-            <p className="muted">
-              The sample pool still works — press <em>Sample pool</em> above.
-            </p>
+            <p className="muted">Press <em>Sample</em> above to see a build on the bundled pool.</p>
           </div>
         )}
 
@@ -64,7 +83,7 @@ export default function App() {
       </main>
 
       <footer className="foot muted">
-        The interface wears the deck’s colors — accents are driven by the chosen color pair.
+        The interface wears the deck’s colors — accents are driven by the chosen colors.
       </footer>
     </div>
   );

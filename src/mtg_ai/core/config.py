@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     # "mock" (default, zero-cost) or "anthropic".
     llm_backend: str = "mock"
 
-    # Model routing. Cheap tier for narrow/high-volume steps; strong tier for synthesis.
+    # Model routing. Cheap tier for narrow/high-volume steps; strong tier for reasoning/synthesis.
     model_cheap: str = "claude-haiku-4-5"
-    model_strong: str = "claude-sonnet-4-6"
+    model_strong: str = "claude-opus-4-8"
 
     # Local Scryfall SQLite database (built by the ingest step).
     db_path: str = "data/scryfall.sqlite"

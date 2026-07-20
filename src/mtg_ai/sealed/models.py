@@ -72,6 +72,24 @@ class SealedDeck(BaseModel):
     rationale: str = ""
 
 
+class LLMBuild(BaseModel):
+    """Structured output from the AI deckbuilder agent — its judgement over the pool.
+
+    The AI picks colors (2 or 3) and the maindeck spells and reasons about synergies; the
+    deterministic manabase optimizer then enforces castability on whatever it chose.
+    """
+
+    colors: list[Color] = Field(description="The 2 (or 3, if justified) colors to build.")
+    maindeck: list[str] = Field(
+        default_factory=list, description="~22-24 nonland card names from the pool to play."
+    )
+    bombs: list[str] = Field(default_factory=list, description="Bomb cards built around.")
+    synergies: list[str] = Field(
+        default_factory=list, description="Short notes on the synergies the build leans on."
+    )
+    rationale: str = ""
+
+
 class SealedResult(BaseModel):
     """Everything produced for one sealed build: the deck plus every stage's intermediate output."""
 
@@ -80,3 +98,5 @@ class SealedResult(BaseModel):
     chosen_colors: list[Color] = Field(default_factory=list)
     deck: SealedDeck
     cost_log: list[CostEntry] = Field(default_factory=list)
+    built_by: str = "deterministic"  # "deterministic" | "ai"
+    synergies: list[str] = Field(default_factory=list)
