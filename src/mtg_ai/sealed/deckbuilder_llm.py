@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from ..core.llm import LLM
 from ..core.models import CostEntry
-from .models import ColorPairScore, LLMBuild, Pool
+from .models import ColorPairScore, LLMBuild, Pool, PriorBuild, SplashSuggestion
 from .scoring import effective_rating, is_removal
 
 SYSTEM = (
@@ -92,15 +92,60 @@ class SealedDeckBuilderAgent:
             parts.append(self._card_line(c))
         return "\n".join(parts)
 
+    def _splash_section(self, splashes: list[SplashSuggestion]) -> str:
+        if not splashes:
+            return ""
+        lines = [
+            "\nTHREE-COLOR / SPLASH OPPORTUNITIES — a 2-color base + a LIGHT splash of a third "
+            "color for bombs/removal. Splashing is often the strongest sealed build, but only when "
+            "the pool has fixing for it. The deterministic manabase will enforce castability and "
+            "flag a splash it can't support, so lean in when the fixing is here:"
+        ]
+        for s in splashes:
+            bombs = f"{s.added_bomb_count} bomb" if s.added_bomb_count else "no bomb"
+            lines.append(
+                f"  {s.label}: adds {', '.join(s.added_cards)} ({bombs}) | "
+                f"+{s.power_gain:.3f} power over {''.join(c.value for c in s.base_colors)} | "
+                f"{s.fixing_count} fixing land(s) make {s.splash_color.value}"
+                + (f" ({', '.join(s.fixing_lands)})" if s.fixing_lands else "")
+            )
+        lines.append(
+            "When a splash adds a bomb or clear power AND has ~3+ fixing sources, PREFER the "
+            "three-color build: put all three colors in `colors` and include the splash cards in "
+            "the maindeck. Do not force a third *main* color without fixing."
+        )
+        return "\n".join(lines)
+
+    def _prior_section(self, prior: PriorBuild | None) -> str:
+        if not prior or not prior.maindeck:
+            return ""
+        return (
+            "\nYOUR PREVIOUS BUILD — revise THIS deck to satisfy the new guidance. Keep what still "
+            "works and change what the guidance asks (you may switch colors, add/drop a splash, or "
+            "swap cards). Call out what you changed and why in the rationale.\n"
+            f"  Colors: {''.join(c.value for c in prior.colors)}\n"
+            f"  Maindeck ({len(prior.maindeck)}): {', '.join(prior.maindeck)}\n"
+            f"  Rationale: {prior.rationale}"
+        )
+
     def run(
-        self, pool: Pool, scores: list[ColorPairScore], guidance: str = ""
+        self,
+        pool: Pool,
+        scores: list[ColorPairScore],
+        guidance: str = "",
+        splashes: list[SplashSuggestion] | None = None,
+        prior: PriorBuild | None = None,
     ) -> tuple[LLMBuild, CostEntry]:
         user = (
             self._describe(pool, scores)
-            + "\n\nBuild the best 40-card sealed deck. Return the colors (2 or 3), the 23 maindeck "
-            "nonland card names, the bombs, the key synergies, and a 3-4 sentence rationale that "
-            "says why these colors and whether you're splashing (and off what fixing)."
+            + self._splash_section(splashes or [])
+            + "\n\nBuild the best 40-card sealed deck. Consider two-color AND two-color-plus-splash "
+            "(three-color) builds; pick whichever is strongest for THIS pool. Return the colors "
+            "(2 or 3), the 23 maindeck nonland card names, the bombs, the key synergies, and a 3-4 "
+            "sentence rationale that says why these colors and whether you're splashing (and off "
+            "what fixing)."
         )
+        user += self._prior_section(prior)
         guidance = (guidance or "").strip()
         if guidance:
             # The player's steer takes priority over the data-driven default — but only within

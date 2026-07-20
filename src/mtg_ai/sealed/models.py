@@ -35,6 +35,34 @@ class ColorPairScore(BaseModel):
     note: str = ""
 
 
+class SplashSuggestion(BaseModel):
+    """A three-color option: a two-color base plus a light splash, upside quantified.
+
+    Sealed 3-color decks are almost always 2 main colors + a small splash for bombs/removal, gated
+    on having fixing (dual lands, mana rocks) — not three equal colors. This captures exactly that:
+    what the splash adds over the base pair, and how much fixing the pool has to support it.
+    """
+
+    label: str  # e.g. "WU + R"
+    colors: list[Color]  # the three colors, WUBRG order
+    base_colors: list[Color]  # the two main colors
+    splash_color: Color
+    added_cards: list[str]  # off-color cards the splash brings into the best 23
+    added_bomb_count: int
+    power_gain: float  # net effective-rating gain over the 2-color base's best 23
+    fixing_count: int  # pool nonbasic lands that produce the splash color
+    fixing_lands: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
+class PriorBuild(BaseModel):
+    """A previous AI build, fed back in so 'Iterate with AI' refines instead of starting fresh."""
+
+    colors: list[Color] = Field(default_factory=list)
+    maindeck: list[str] = Field(default_factory=list)
+    rationale: str = ""
+
+
 class DeckCard(BaseModel):
     """One nonland card in the built deck (with the facts the UI/rationale need)."""
 
@@ -98,6 +126,7 @@ class SealedResult(BaseModel):
 
     pool: Pool
     colorpair_scores: list[ColorPairScore] = Field(default_factory=list)
+    splash_options: list[SplashSuggestion] = Field(default_factory=list)
     chosen_colors: list[Color] = Field(default_factory=list)
     deck: SealedDeck
     cost_log: list[CostEntry] = Field(default_factory=list)

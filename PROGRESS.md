@@ -189,6 +189,20 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
   cache) — fixes the recurring "I rebuilt but the browser shows the old page" stale-tab problem.
   (A server already running from before this change still needs one hard-reload; restarts don't.)
 
+### Three-color/splash assessment + Iterate-vs-Fresh AI (2026-07-20) — DONE
+- **3-color splash intelligence.** `build.assess_splashes(pool, bases)` evaluates, for the top
+  2-color bases, each third-color splash: the off-color cards worth splashing (bombs / cards better
+  than the base's weakest non-bomb), net power gain, and pool fixing-land count for that color. A
+  splash is *light* (≤3 cards) and only surfaces with a bomb or clear gain — mirroring real sealed.
+  Fed to the AI prompt as a **THREE-COLOR / SPLASH OPPORTUNITIES** block ("prefer 3-color when a
+  splash adds a bomb AND has ~3+ fixing sources") and shown in a new UI panel. `SealedResult` now
+  carries `splash_options`. Fixes "the best build was clearly 3 colors and the AI missed it."
+- **Iterate vs Start Fresh.** The single AI button split into **✦ Start Fresh with AI** (from
+  scratch) and **⟳ Iterate with AI** (feeds the current build back via `PriorBuild` so the model
+  *revises* it per the guidance instead of re-deriving). POST body gained `prior`; agent prompt
+  gained a YOUR-PREVIOUS-BUILD section. Guidance-box Enter = iterate when a deck exists, else fresh.
+- Tests: `assess_splashes` finds a bomb off fixing; splash+prior sections reach the prompt. 37 pass.
+
 ## NEED FROM USER
 1. ✅ DONE — Arena Detailed Logs enabled + MSH sealed pool captured.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.

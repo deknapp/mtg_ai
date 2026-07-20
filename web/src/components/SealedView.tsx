@@ -145,6 +145,43 @@ export function SealedView({ result }: { result: SealedResult }) {
         </section>
       </div>
 
+      {/* Three-color / splash options */}
+      {result.splash_options.length > 0 && (
+        <section className="panel">
+          <h2 className="panel-h">Three-color / splash options</h2>
+          <ul className="splashes">
+            {result.splash_options.map((s) => {
+              const isChosen =
+                chosen_colors.length === s.colors.length &&
+                s.colors.every((c) => chosen_colors.includes(c));
+              return (
+                <li key={s.label} className={`splash${isChosen ? " chosen" : ""}`}>
+                  <span className="splash-head">
+                    {s.colors.map((c) => (
+                      <span key={c} className="pip sm" style={{ background: COLOR_HEX[c] }} />
+                    ))}
+                    <b>{s.label}</b>
+                    {isChosen && <span className="tag-built">built</span>}
+                  </span>
+                  <span className="splash-add">
+                    {s.added_bomb_count > 0 && <span className="splash-bomb">★ {s.added_bomb_count} bomb </span>}
+                    adds {s.added_cards.join(", ")}
+                  </span>
+                  <span className="muted splash-fix">
+                    +{s.power_gain.toFixed(2)} power · {s.fixing_count} fixing land
+                    {s.fixing_count === 1 ? "" : "s"} for {COLOR_NAME[s.splash_color]}
+                    {s.fixing_lands.length > 0 && ` (${s.fixing_lands.join(", ")})`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="muted">
+            A splash is only as strong as its fixing — the manabase check flags one it can’t support.
+          </p>
+        </section>
+      )}
+
       {/* Sideboard + pipeline */}
       <div className="two-col">
         {deck.sideboard_highlights.length > 0 && (

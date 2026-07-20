@@ -166,9 +166,30 @@ export interface Pool {
   unresolved_ids: number[];
 }
 
+export interface SplashSuggestion {
+  label: string; // e.g. "WU + R"
+  colors: Color[];
+  base_colors: Color[];
+  splash_color: Color;
+  added_cards: string[];
+  added_bomb_count: number;
+  power_gain: number;
+  fixing_count: number;
+  fixing_lands: string[];
+  note: string;
+}
+
+/** A previous AI build, sent back on "Iterate with AI" so the model refines it. */
+export interface PriorBuild {
+  colors: Color[];
+  maindeck: string[];
+  rationale: string;
+}
+
 export interface SealedResult {
   pool: Pool;
   colorpair_scores: ColorPairScore[];
+  splash_options: SplashSuggestion[];
   chosen_colors: Color[];
   deck: SealedDeck;
   cost_log: CostEntry[];
@@ -248,6 +269,7 @@ export async function buildSealedPool(
   pool: PoolSummary,
   ai = false,
   guidance = "",
+  prior: PriorBuild | null = null,
 ): Promise<SealedResult> {
   return parseSealed(
     await fetch(`/api/sealed/build${ai ? "?ai=true" : ""}`, {
@@ -258,6 +280,7 @@ export async function buildSealedPool(
         set_code: pool.set_code,
         event: pool.event,
         guidance: guidance.trim(),
+        prior, // non-null on "Iterate with AI" -> the model refines this build
       }),
     }),
   );

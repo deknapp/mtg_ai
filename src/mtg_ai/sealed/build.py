@@ -13,8 +13,10 @@ from statistics import mean
 
 from ..core.models import Card, Color
 from .manabase import build_manabase
-from .models import ColorPairScore, DeckCard, Pool, SealedDeck
+from .models import ColorPairScore, DeckCard, Pool, SealedDeck, SplashSuggestion
 from .scoring import castable_in, effective_rating, is_bomb, role
+
+_WUBRG = list(Color)  # canonical color order for stable labels
 
 DECK_SPELLS = 23  # 40-card deck = 23 nonland + 17 lands
 MIN_CREATURES = 13  # a limited deck needs bodies; nudge selection toward this floor
@@ -60,6 +62,91 @@ def score_color_pairs(pool: Pool) -> list[ColorPairScore]:
 
 def best_colors(scores: list[ColorPairScore]) -> list[Color]:
     return scores[0].colors if scores else [Color.WHITE, Color.BLUE]
+
+
+def _splash_fixers(pool: Pool, splash: Color) -> list[Card]:
+    """Pool nonbasic lands that tap for the splash color (what makes the splash castable)."""
+    return [
+        c for c in pool.cards
+        if c.is_land and "Basic" not in (c.type_line or "") and splash in set(c.produced_mana)
+    ]
+
+
+def _evaluate_splash(pool: Pool, base: set[Color], splash: Color) -> tuple[list[Card], float]:
+    """The off-color cards worth splashing over the 2-color `base`, and the net power gain.
+
+    A splash is *light*: it earns its slot only with bombs or cards clearly better than the base's
+    weakest non-bomb playables, and we cap it at a few cards — never a full third color.
+    """
+    base_top = sorted(
+        (c for c in pool.spells if castable_in(c, base)), key=_sort_key, reverse=True
+    )[:DECK_SPELLS]
+    # Cards that *require* the splash: they need it and aren't castable in the base alone.
+    three = base | {splash}
+    splash_cards = sorted(
+        (c for c in pool.spells
+         if splash in set(c.colors) and castable_in(c, three) and not castable_in(c, base)),
+        key=_sort_key, reverse=True,
+    )
+    cuttable = sorted((c for c in base_top if not is_bomb(c)), key=effective_rating)  # weakest first
+    added: list[Card] = []
+    gain = 0.0
+    for sc in splash_cards:
+        if not cuttable or len(added) >= 3:
+            break
+        weakest = cuttable[0]
+        if is_bomb(sc) or effective_rating(sc) > effective_rating(weakest):
+            added.append(sc)
+            gain += effective_rating(sc) - effective_rating(weakest)
+            cuttable.pop(0)
+    return added, round(gain, 3)
+
+
+def assess_splashes(
+    pool: Pool, bases: list[list[Color]], *, top_bases: int = 3, max_out: int = 4
+) -> list[SplashSuggestion]:
+    """Quantify the best three-color (2 base + splash) options over the strongest color pairs.
+
+    For each of the top `bases`, try each third color: what high-value cards it adds, the net
+    power gain, and how much fixing the pool has for it. Only surfaces splashes that bring a bomb
+    or a clear power gain — mirroring how a real sealed 3-color deck is built.
+    """
+    suggestions: list[SplashSuggestion] = []
+    seen: set[tuple[Color, ...]] = set()
+    for base_colors in bases[:top_bases]:
+        base = set(base_colors)
+        for splash in _WUBRG:
+            if splash in base:
+                continue
+            added, gain = _evaluate_splash(pool, base, splash)
+            n_bombs = sum(1 for c in added if is_bomb(c))
+            if not added or (n_bombs == 0 and gain < 0.02):
+                continue  # not worth a splash
+            trio = tuple(c for c in _WUBRG if c in base or c == splash)
+            if trio in seen:
+                continue
+            seen.add(trio)
+            fixers = _splash_fixers(pool, splash)
+            support = (
+                f"{len(fixers)} fixing land(s) make {splash.value}" if fixers
+                else f"no fixing for {splash.value} in pool — would lean on basics only"
+            )
+            suggestions.append(
+                SplashSuggestion(
+                    label=f"{''.join(c.value for c in base_colors)} + {splash.value}",
+                    colors=list(trio),
+                    base_colors=list(base_colors),
+                    splash_color=splash,
+                    added_cards=[c.name for c in added],
+                    added_bomb_count=n_bombs,
+                    power_gain=gain,
+                    fixing_count=len(fixers),
+                    fixing_lands=[c.name for c in fixers],
+                    note=f"adds {', '.join(c.name for c in added)}; {support}",
+                )
+            )
+    suggestions.sort(key=lambda s: (s.added_bomb_count, s.power_gain), reverse=True)
+    return suggestions[:max_out]
 
 
 def select_spells(pool: Pool, colors: list[Color], n: int = DECK_SPELLS) -> list[Card]:

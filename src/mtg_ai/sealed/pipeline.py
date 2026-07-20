@@ -16,12 +16,12 @@ from ..core.config import Settings, get_secrets, get_settings
 from ..core.data import CardRepository, SqliteCardRepository, StubCardRepository
 from ..core.llm import LLM, build_llm
 from ..core.models import Color, CostEntry
-from .build import assemble_deck, best_colors, build_deck, score_color_pairs
+from .build import assemble_deck, assess_splashes, best_colors, build_deck, score_color_pairs
 from .deckbuilder_llm import SealedDeckBuilderAgent
 from .enrichment import SealedEnrichment
 from .ingest_log import ParsedPool
 from .mock_backend import HANDLERS
-from .models import ColorPairScore, Pool, SealedResult
+from .models import ColorPairScore, PriorBuild, Pool, SealedResult
 from .ratings import SEALED_LADDER, RatingsCache, RatingsIndex
 
 
@@ -52,25 +52,29 @@ class SealedPipeline:
         self._llm = llm
         self._use_llm = use_llm
 
-    def run(self, parsed: ParsedPool, guidance: str = "") -> SealedResult:
+    def run(
+        self, parsed: ParsedPool, guidance: str = "", prior: PriorBuild | None = None
+    ) -> SealedResult:
         cost_log: list[CostEntry] = []
 
         pool = SealedEnrichment(self._repo, self._ratings).run(parsed, self._settings.default_set)
         cost_log.append(CostEntry(agent="enrichment", model="deterministic"))
 
         scores = score_color_pairs(pool)
+        splashes = assess_splashes(pool, [s.colors for s in scores])
         cost_log.append(CostEntry(agent="colorpairs", model="deterministic"))
 
         if self._use_llm and self._llm is not None:
             build, cost = SealedDeckBuilderAgent(self._llm, self._settings.model_strong).run(
-                pool, scores, guidance
+                pool, scores, guidance, splashes=splashes, prior=prior
             )
             cost_log.append(cost)
             colors = build.colors or best_colors(scores)
             deck = assemble_deck(pool, colors, build.maindeck, build.rationale)
             return SealedResult(
-                pool=pool, colorpair_scores=scores, chosen_colors=colors, deck=deck,
-                cost_log=cost_log, built_by="ai", synergies=build.synergies,
+                pool=pool, colorpair_scores=scores, splash_options=splashes,
+                chosen_colors=colors, deck=deck, cost_log=cost_log, built_by="ai",
+                synergies=build.synergies,
             )
 
         colors = best_colors(scores)
@@ -78,8 +82,8 @@ class SealedPipeline:
         deck = build_deck(pool, colors, rationale)
         cost_log.append(CostEntry(agent="deckbuilder", model="deterministic"))
         return SealedResult(
-            pool=pool, colorpair_scores=scores, chosen_colors=colors, deck=deck,
-            cost_log=cost_log, built_by="deterministic",
+            pool=pool, colorpair_scores=scores, splash_options=splashes,
+            chosen_colors=colors, deck=deck, cost_log=cost_log, built_by="deterministic",
         )
 
 

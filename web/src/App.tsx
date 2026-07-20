@@ -6,6 +6,7 @@ import {
   fetchSealedDemo,
   fetchSealedStatus,
   type PoolSummary,
+  type PriorBuild,
   type SealedResult,
 } from "./api";
 import { applyAccent } from "./theme";
@@ -78,13 +79,27 @@ export default function App() {
 
   // Build the pool the user picked. Falls back to the auto-find endpoint (which returns an
   // actionable error) when no pools were discovered, so the message flow is unchanged.
+  // The current deck as a "prior", so Iterate refines it instead of starting from scratch.
+  const priorFromResult = (): PriorBuild | null =>
+    result
+      ? {
+          colors: result.chosen_colors,
+          maindeck: result.deck.spells.map((s) => s.name),
+          rationale: result.deck.rationale,
+        }
+      : null;
+
   const buildChosen = useCallback(
-    (ai: boolean) => {
+    (ai: boolean, prior: PriorBuild | null = null) => {
       const pool = pools[selected];
-      const msg = ai ? "Reasoning over your pool with Opus… (~15s)" : "Building your selected pool…";
+      const msg = !ai
+        ? "Building your selected pool…"
+        : prior
+          ? "Iterating on your deck with Opus… (~15s)"
+          : "Reasoning over your pool with Opus… (~15s)";
       return pool
-        ? run(() => buildSealedPool(pool, ai, guidance), msg)
-        : run(() => buildSealed(ai, guidance), msg);
+        ? run(() => buildSealedPool(pool, ai, guidance, prior), msg)
+        : run(() => buildSealed(ai, guidance), msg); // no-pool fallback can't iterate
     },
     [pools, selected, run, guidance],
   );
@@ -125,12 +140,21 @@ export default function App() {
           <button
             className="btn"
             disabled={busy || !aiAvailable}
-            title={aiAvailable ? "Opus reasons over the selected pool (~15s, uses your API key)"
+            title={aiAvailable ? "Opus builds from scratch over the selected pool (~15s, uses your API key)"
               : "Add ANTHROPIC_API_KEY to .env to enable AI builds"}
-            onClick={() => buildChosen(true)}
+            onClick={() => buildChosen(true, null)}
           >
-            ✦ {result?.built_by === "ai" ? "Redo with AI" : "Build with AI"}
-            {!aiAvailable && <span className="muted"> (no key)</span>}
+            ✦ Start Fresh with AI{!aiAvailable && <span className="muted"> (no key)</span>}
+          </button>
+          <button
+            className="btn"
+            disabled={busy || !aiAvailable || !result}
+            title={!result ? "Build a deck first, then iterate on it"
+              : aiAvailable ? "Opus refines the current deck using your guidance (~15s, uses your API key)"
+              : "Add ANTHROPIC_API_KEY to .env to enable AI builds"}
+            onClick={() => buildChosen(true, priorFromResult())}
+          >
+            ⟳ Iterate with AI
           </button>
           <button className="btn ghost" disabled={busy} onClick={() => buildChosen(false)}>
             Quick build
@@ -151,10 +175,13 @@ export default function App() {
             type="text"
             value={guidance}
             disabled={busy}
-            placeholder="Optional steer for the AI build — e.g. “lean aggressive W/R”, “splash blue for card draw”, “build around Iron Man”. Press Enter to build."
+            placeholder="Optional steer for the AI — e.g. “lean aggressive W/R”, “splash black for the bombs”, “build around Iron Man”. Enter = iterate on the current deck."
             onChange={(e) => setGuidance(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && aiAvailable && !busy) buildChosen(true);
+              if (e.key === "Enter" && aiAvailable && !busy) {
+                // Enter refines the current deck if there is one, else builds fresh.
+                buildChosen(true, result ? priorFromResult() : null);
+              }
             }}
           />
         </label>
@@ -165,7 +192,7 @@ export default function App() {
         )}
         <span className="guidance-hint muted">
           {aiAvailable
-            ? "Used by ✦ Build with AI (spends a few cents). Quick build ignores it."
+            ? "Steers ✦ Start Fresh and ⟳ Iterate (each spends a few cents). Quick build ignores it."
             : "Add ANTHROPIC_API_KEY to .env to enable AI builds."}
         </span>
       </div>

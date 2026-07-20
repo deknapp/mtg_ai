@@ -268,6 +268,63 @@ def test_guidance_is_passed_into_the_ai_prompt():
     assert "PLAYER GUIDANCE" not in captured["user"]
 
 
+def test_assess_splashes_surfaces_a_bomb_off_fixing():
+    from mtg_ai.sealed.build import assess_splashes, score_color_pairs
+
+    cards = [
+        _card(f"{'W' if i % 2 == 0 else 'U'}Card{i}",
+              f"{{1}}{{{'W' if i % 2 == 0 else 'U'}}}",
+              [Color.WHITE if i % 2 == 0 else Color.BLUE], 2, rating=0.52, arena_id=100 + i)
+        for i in range(24)
+    ]
+    cards.append(_card("Red Bomb", "{3}{R}", [Color.RED], 4, rarity="mythic",
+                       rating=0.62, arena_id=200))
+    cards.append(Card(name="Cinder Dual", type_line="Land",
+                      produced_mana=[Color.RED, Color.WHITE], arena_id=300))
+    pool = Pool(set_code="tst", cards=cards)
+
+    splashes = assess_splashes(pool, [s.colors for s in score_color_pairs(pool)])
+    red = [s for s in splashes if s.splash_color == Color.RED]
+    assert red, "expected a red splash suggestion for the off-color bomb"
+    assert "Red Bomb" in red[0].added_cards
+    assert red[0].added_bomb_count >= 1
+    assert red[0].fixing_count >= 1 and "Cinder Dual" in red[0].fixing_lands
+
+
+def test_splash_and_prior_sections_reach_the_prompt():
+    from mtg_ai.core.models import Color, CostEntry
+    from mtg_ai.sealed.build import score_color_pairs
+    from mtg_ai.sealed.deckbuilder_llm import SealedDeckBuilderAgent
+    from mtg_ai.sealed.models import LLMBuild, PriorBuild, SplashSuggestion
+
+    captured = {}
+
+    class _SpyLLM:
+        def structured(self, *, agent, model, user, **kwargs):
+            captured["user"] = user
+            return LLMBuild(colors=[Color.GREEN], rationale="ok"), CostEntry(agent=agent, model=model)
+
+    pool = _mono_pool(Color.GREEN, "G")
+    splashes = [SplashSuggestion(
+        label="GW + R", colors=[Color.WHITE, Color.RED, Color.GREEN],
+        base_colors=[Color.GREEN, Color.WHITE], splash_color=Color.RED,
+        added_cards=["Splashy Bomb"], added_bomb_count=1, power_gain=0.05,
+        fixing_count=3, fixing_lands=["Dual Land"])]
+    prior = PriorBuild(colors=[Color.GREEN, Color.WHITE], maindeck=["Card A", "Card B"],
+                       rationale="prev reasoning")
+
+    agent = SealedDeckBuilderAgent(_SpyLLM(), "m")
+    agent.run(pool, score_color_pairs(pool), splashes=splashes, prior=prior)
+    u = captured["user"]
+    assert "THREE-COLOR / SPLASH OPPORTUNITIES" in u and "GW + R" in u and "Splashy Bomb" in u
+    assert "YOUR PREVIOUS BUILD" in u and "prev reasoning" in u
+
+    # Fresh build (no prior) -> no prior section leaks in.
+    captured.clear()
+    agent.run(pool, score_color_pairs(pool), splashes=splashes)
+    assert "YOUR PREVIOUS BUILD" not in captured["user"]
+
+
 def test_resolve_names_honors_duplicates_and_fuzzy():
     from mtg_ai.sealed.build import resolve_names
 

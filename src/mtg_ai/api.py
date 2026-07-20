@@ -35,7 +35,7 @@ from .sealed.ingest_log import (
     load_pool,
     load_pool_fixture,
 )
-from .sealed.models import SealedResult
+from .sealed.models import PriorBuild, SealedResult
 from .sealed.pipeline import ai_available, build_sealed_pipeline, load_ratings
 
 # The built frontend (web/dist), if it has been produced by `npm run build`.
@@ -118,14 +118,19 @@ async def recommend(
 # The sealed build is deterministic (no LLM), so these are always free — no live toggle needed.
 
 
-def _run_sealed(parsed: ParsedPool, use_ai: bool = False, guidance: str = "") -> SealedResult:
+def _run_sealed(
+    parsed: ParsedPool,
+    use_ai: bool = False,
+    guidance: str = "",
+    prior: PriorBuild | None = None,
+) -> SealedResult:
     settings = Settings()
     if parsed.set_code:
         settings.default_set = parsed.set_code
     ratings = load_ratings(settings)  # cached; network only on first fetch
-    # Guidance only steers the AI build; the deterministic build ignores it.
+    # Guidance and the prior build only steer the AI build; the deterministic build ignores them.
     return build_sealed_pipeline(settings, ratings=ratings, use_llm=use_ai).run(
-        parsed, guidance=guidance if use_ai else ""
+        parsed, guidance=guidance if use_ai else "", prior=prior if use_ai else None
     )
 
 
@@ -174,6 +179,7 @@ class PoolBuildRequest(BaseModel):
     set_code: str | None = None
     event: str | None = None
     guidance: str = ""  # free-text steer for the AI build ("lean aggressive", "splash red"…)
+    prior: PriorBuild | None = None  # set on "Iterate with AI" to refine the last build
 
 
 @app.get("/api/sealed/pools", response_model=PoolListResponse)
@@ -252,7 +258,9 @@ def sealed_build_selected(
     parsed = ParsedPool(
         grp_ids=req.grp_ids, event=req.event, set_code=req.set_code, detailed_logs=True
     )
-    return _run_sealed(parsed, use_ai=ai and ai_available(), guidance=req.guidance)
+    return _run_sealed(
+        parsed, use_ai=ai and ai_available(), guidance=req.guidance, prior=req.prior
+    )
 
 
 # Serve the built SPA when present. Mounted LAST so the /api/* routes above take precedence.
