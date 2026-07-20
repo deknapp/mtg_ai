@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mtg-ai"
+version = "0.1.0"
+description = "General MTG AI toolkit. Focus: an agentic sealed deck builder that auto-imports your Arena pool and builds the best 40-card deck. Includes a ported draft-pick assistant."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Nathan" }]
+dependencies = [
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "anthropic>=0.40",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
+    "ijson>=3.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+mtg-sealed = "mtg_ai.sealed.cli:main"
+mtg-ai = "mtg_ai.serve:main"
+mtg-draft = "mtg_ai.draft.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
