@@ -100,9 +100,13 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
    endpoints; App is sealed-first, opens on the sample pool, "Build from my Arena pool" button.
    One-command `mtg-ai` launcher + double-click `run.command`. Built + screenshot-verified.
 9. ~~**README** portfolio artifact~~ ✅ DONE — sealed-first, architecture, objectives A/B/C, data spine.
-10. **LLM synergy/rationale pass** (real backend): a deckbuilder synthesis agent that refines cuts +
-    writes the rationale; wire model routing/caching. Mock-first; opt-in for real spend. ⬅ NEXT
-11. **Real-model validation** on the live pool (Nathan opts in; no API $ without ok).
+10. ~~**AI deckbuilder**~~ ✅ DONE — `sealed/deckbuilder_llm.py`: Opus 4.8 + adaptive thinking reasons
+    over the whole pool (17Lands GIHWR as a guide), picks colors (2 or 3), the 23 cards, synergies,
+    and bombs; deterministic manabase still enforces castability. `--ai` CLI flag, `?ai=true` API,
+    "Build with AI" button + "AI reasoned" badge + synergies panel. `model_strong=claude-opus-4-8`.
+    Mock-first (free offline). **Validated LIVE on the real MSH pool** → W/U artifacts, found both
+    mythic bombs (Tony Stark + Ultron), explained the artifact engine, feasible mana. Committed `1c2c701`.
+11. ~~**Real-model validation**~~ ✅ DONE — Nathan opted in; live Opus builds confirmed via CLI + API.
 
 ### Polish backlog (nice-to-have)
 - Curve card names truncate hard in narrow columns — add a hover tooltip / full name on wider screens.
@@ -120,9 +124,11 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.
 
 ## Next action
-- Sealed builder is complete end-to-end (CLI + visual web app), validated on the real MSH pool.
-- Remaining: TODO #10 (LLM synergy/rationale pass — needs Nathan's opt-in for real API spend) and
-  the polish backlog above. Nothing is blocked.
+- Sealed builder is complete AND AI-enabled (Opus deckbuilder), CLI + visual web app, validated
+  live on the real MSH pool. Only the polish backlog remains; nothing is blocked.
+- Model routing: cheap=`claude-haiku-4-5`, strong=`claude-opus-4-8` (adaptive thinking for the AI
+  build). AI uses the ANTHROPIC_API_KEY already in `.env` — every AI build spends a few cents.
 - Try it now:
-  - Visual app:  `uv run mtg-ai`   (or double-click `run.command`)
-  - CLI:         `uv run mtg-sealed`   (live pool)  ·  `--fixture tests/fixtures/sealed_pool_msh.json` (sample)
+  - Visual app:  `uv run mtg-ai`  → click **Build with AI**   (or double-click `run.command`)
+  - CLI (AI):    `uv run mtg-sealed --ai`     ·  free deterministic: drop `--ai`
+  - Sample/offline: `uv run mtg-sealed --ai --fixture tests/fixtures/sealed_pool_msh.json`
