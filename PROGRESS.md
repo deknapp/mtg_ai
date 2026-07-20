@@ -170,6 +170,17 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
 - Test: `test_guidance_is_passed_into_the_ai_prompt` (spy LLM asserts the steer reaches the prompt,
   and that no guidance section leaks when empty). 35 tests pass.
 
+### Self-healing server spinup (2026-07-20) — DONE
+- Closing the Terminal can orphan uvicorn (it keeps holding port 8000), so the next `run.command`
+  used to fail with `address already in use`. `serve.py` now self-heals on startup:
+  - Port free → serve on 8000.
+  - Port held by a **leftover mtg_ai server** (identified via `GET /api/sealed/status`) → SIGTERM→
+    SIGKILL it (`_reclaim_port`), then reuse 8000 — so restarts always work.
+  - Port held by **something unrelated** → leave it alone, serve on the next free port (8001–8010).
+  - No port free in range → clear error with the manual `lsof -ti:8000 | xargs kill` hint.
+- Verified end-to-end: double-launch (no stop between) → 2nd launch reclaims 8000 (PID changes),
+  never falls back to 8001; foreign occupant → correctly moves to 8001.
+
 ## NEED FROM USER
 1. ✅ DONE — Arena Detailed Logs enabled + MSH sealed pool captured.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.
