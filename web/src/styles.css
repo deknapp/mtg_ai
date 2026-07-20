@@ -568,7 +568,49 @@ table.cost-table {
 }
 
 /* --- Sealed view ---------------------------------------------------------- */
-.actions { display: flex; gap: 10px; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* --- Pool picker -------------------------------------------------------- */
+.pool-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 12px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--stone-600);
+}
+.pool-picker-label {
+  font-family: var(--f-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mist);
+}
+.pool-select {
+  font-family: var(--f-body);
+  font-size: 0.9rem;
+  color: var(--fog);
+  background: var(--stone-700);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  cursor: pointer;
+  max-width: 46ch;
+}
+.pool-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pool-note {
+  color: var(--mist);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--stone-800);
+  box-shadow: inset 0 0 0 1px var(--stone-700);
+}
+.pool-note strong { color: var(--fog); font-weight: 600; }
+.pool-note em { color: var(--fog); font-style: normal; font-weight: 600; }
 .btn {
   font-family: var(--f-body); font-size: 0.9rem; font-weight: 600;
   color: var(--ink); background: var(--accent); border: none;

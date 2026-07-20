@@ -206,3 +206,42 @@ export async function fetchSealedDemo(ai = false): Promise<SealedResult> {
 export async function buildSealed(ai = false): Promise<SealedResult> {
   return parseSealed(await fetch(`/api/sealed/build${ai ? "?ai=true" : ""}`));
 }
+
+/** One sealed pool found in the Arena log, with metadata to help the user recognize it. */
+export interface PoolSummary {
+  index: number; // 0 = most recently active
+  timestamp: string | null; // e.g. "7/20/2026 8:12:39 AM"
+  event: string | null;
+  set_code: string | null;
+  card_count: number;
+  sample_cards: string[]; // a few notable (highest-rarity) names
+  grp_ids: number[];
+}
+
+export interface PoolListResponse {
+  pools: PoolSummary[];
+  detailed_logs: boolean | null; // whether Arena's Detailed Logs were on
+  log_path: string | null;
+}
+
+/** List every distinct sealed pool in the Arena log so the user can pick the right one. */
+export async function fetchPools(): Promise<PoolListResponse> {
+  const res = await fetch("/api/sealed/pools");
+  if (!res.ok) return { pools: [], detailed_logs: null, log_path: null };
+  return res.json();
+}
+
+/** Build from a specific pool the user selected in the picker. `ai` opts into reasoning. */
+export async function buildSealedPool(pool: PoolSummary, ai = false): Promise<SealedResult> {
+  return parseSealed(
+    await fetch(`/api/sealed/build${ai ? "?ai=true" : ""}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grp_ids: pool.grp_ids,
+        set_code: pool.set_code,
+        event: pool.event,
+      }),
+    }),
+  );
+}

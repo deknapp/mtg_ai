@@ -144,6 +144,20 @@ pairs) -> deckbuilder (manabase optimizer + LLM synergy/rationale) -> DeckList`.
 - Removal detection is a regex heuristic — may under-count; fine for v1, revisit with set mechanics.
 - Sealed win-rates on 17Lands are still empty for MSH; PremierDraft fallback is active. Re-check later.
 
+### Pool picker + "newest not largest" fix (2026-07-20) — DONE
+- **Bug:** the log holds several `CardPool` arrays — the complete pool is re-emitted, and shrinking
+  copies are logged as cards move to the deck. `parse_pool` did `max(pools, key=len)`, which on a
+  size tie returns the *first* complete pool. With two 84-card pools in the log (two sealed sit-downs)
+  it always served the **older** one — the reported "it's using the old pool" symptom.
+- **Fix:** `ingest_log.list_pools(text)` returns every *distinct complete* pool (keeps only
+  max-length arrays → drops fragments regardless of set, de-dupes by contents), newest-first, each
+  tagged with wall-clock timestamp + event. `parse_pool` now returns the most-recent pool.
+- **API:** `GET /api/sealed/pools` lists them (timestamp/event/set/count + a few highest-rarity
+  card names for recognition); `POST /api/sealed/build` builds the exact selected pool by grp_ids.
+- **UI:** a **Pool** dropdown in the header (defaults to ★ latest); Quick build / Build with AI use
+  the selection; a note shows how many pools were found + which is selected.
+- Tests: +regression (`most_recent_full_pool_not_the_first`) + `list_pools` dedupe/order. 34 pass.
+
 ## NEED FROM USER
 1. ✅ DONE — Arena Detailed Logs enabled + MSH sealed pool captured.
 2. (Later) Opt-in before any **real** LLM/API spend; verify 17Lands has MSH data when we go online.

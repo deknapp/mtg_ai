@@ -22,6 +22,9 @@ _DEFAULT_LOGS = [
 
 _CARDPOOL_RE = re.compile(r'"CardPool"\s*:\s*\[([0-9,\s]*)\]')
 _EVENT_RE = re.compile(r'"InternalEventName"\s*:\s*"([^"]*[Ss]ealed[^"]*)"')
+# Arena stamps each logger block with a wall-clock line, e.g.
+#   [UnityCrossThreadLogger]7/20/2026 8:12:39 AM
+_TIMESTAMP_RE = re.compile(r'\[UnityCrossThreadLogger\]([0-9]{1,2}/[0-9]{1,2}/[0-9]{4} [0-9:]+ [AP]M)')
 # e.g. ArenaDirect_MSH_Play_Sealed_20260717 -> set code MSH
 _SET_RE = re.compile(r'(?:ArenaDirect|Sealed)_([A-Za-z0-9]{2,5})_')
 _DETAILED_ON = "DETAILED LOGS: ENABLED"
@@ -38,6 +41,7 @@ class ParsedPool:
     event: str | None = None
     set_code: str | None = None
     detailed_logs: bool | None = None  # None = unknown (no status line seen)
+    timestamp: str | None = None  # wall-clock of the pool's first appearance in the log
     notes: list[str] = field(default_factory=list)
 
 
@@ -57,37 +61,95 @@ def _set_from_event(event: str | None) -> str | None:
     return m.group(1).lower() if m else None
 
 
-def parse_pool(text: str) -> ParsedPool:
-    """Extract the sealed pool from raw Arena log text.
-
-    Picks the largest `CardPool` array (the complete pool; the log also emits shrinking pools
-    as cards move to the deck/sideboard). Reads the most recent sealed event name and the
-    detailed-logging status so callers can give a precise hint when the pool is missing.
-    """
-    detailed = None
+def detailed_logs_status(text: str) -> bool | None:
+    """Whether Arena's 'Detailed Logs (Plugin Support)' was on. None = no status line seen."""
     if _DETAILED_ON in text:
-        detailed = True
-    elif _DETAILED_OFF in text:
-        detailed = False
+        return True
+    if _DETAILED_OFF in text:
+        return False
+    return None
 
-    pools = [
-        [int(x) for x in body.split(",") if x.strip()]
-        for body in _CARDPOOL_RE.findall(text)
+
+def _nearest_before(marks: list[tuple[int, str]], pos: int) -> str | None:
+    """The value of the last (position, value) mark occurring before `pos` (marks are sorted)."""
+    found = None
+    for mark_pos, value in marks:
+        if mark_pos < pos:
+            found = value
+        else:
+            break
+    return found
+
+
+def list_pools(text: str) -> list[ParsedPool]:
+    """Every distinct *complete* sealed pool in the log, most-recently-active first.
+
+    Arena re-emits the pool many times, and emits shrinking `CardPool` arrays as cards move into
+    the deck, so a raw scan is full of duplicates and partial pools. A complete pool is the
+    largest one Arena logged; we keep only arrays of that maximum length (which drops every
+    fragment regardless of set/pool size), de-duplicate by contents, and tag each survivor with
+    the wall-clock timestamp and sealed event nearest *before* its first appearance — the metadata
+    a person needs to tell two same-size pools apart and pick the right one.
+
+    Ordered newest-first (the log is append-only, so a later file position = more recent), so
+    index 0 is "your latest pool".
+    """
+    detailed = detailed_logs_status(text)
+    timestamps = [(m.start(), m.group(1)) for m in _TIMESTAMP_RE.finditer(text)]
+    events = [(m.start(), m.group(1)) for m in _EVENT_RE.finditer(text)]
+
+    raw = [
+        (m.start(), [int(x) for x in m.group(1).split(",") if x.strip()])
+        for m in _CARDPOOL_RE.finditer(text)
     ]
-    events = _EVENT_RE.findall(text)
-    event = events[-1] if events else None
+    raw = [(pos, ids) for pos, ids in raw if ids]
+    if not raw:
+        return []
+    full_len = max(len(ids) for _, ids in raw)
 
+    index_of: dict[tuple[int, ...], int] = {}
+    pools: list[ParsedPool] = []
+    last_seen_pos: list[int] = []
+    for pos, ids in raw:
+        if len(ids) != full_len:  # a shrinking/partial emission, not the complete pool
+            continue
+        key = tuple(sorted(ids))
+        if key in index_of:
+            last_seen_pos[index_of[key]] = pos  # remember its most recent sighting
+            continue
+        event = _nearest_before(events, pos)
+        index_of[key] = len(pools)
+        pools.append(
+            ParsedPool(
+                grp_ids=ids,
+                event=event,
+                set_code=_set_from_event(event),
+                detailed_logs=detailed,
+                timestamp=_nearest_before(timestamps, pos),
+            )
+        )
+        last_seen_pos.append(pos)
+
+    order = sorted(range(len(pools)), key=lambda i: last_seen_pos[i], reverse=True)
+    return [pools[i] for i in order]
+
+
+def parse_pool(text: str) -> ParsedPool:
+    """Extract a single sealed pool from raw Arena log text.
+
+    Returns the most recently active full pool (see `list_pools`) — use `list_pools` directly
+    when the caller wants to show all of them and let the user choose. Reads the detailed-logging
+    status and event name so callers can give a precise hint when no pool is present.
+    """
+    detailed = detailed_logs_status(text)
+    pools = list_pools(text)
     if not pools:
+        event = (_EVENT_RE.findall(text) or [None])[-1]
         return ParsedPool(grp_ids=[], event=event, set_code=_set_from_event(event),
                           detailed_logs=detailed)
-
-    grp_ids = max(pools, key=len)
-    return ParsedPool(
-        grp_ids=grp_ids,
-        event=event,
-        set_code=_set_from_event(event),
-        detailed_logs=detailed,
-    )
+    # Back-compat single-pool API: return the most recently active pool (list_pools' first),
+    # not the largest — a newer, equal-or-smaller pool used to lose to a stale bigger one.
+    return pools[0]
 
 
 def load_pool(log_path: str | Path | None = None) -> ParsedPool:

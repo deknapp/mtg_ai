@@ -6,7 +6,7 @@ from mtg_ai.core.data import CardRepository
 from mtg_ai.core.models import Card, Color
 from mtg_ai.sealed.build import build_deck, score_color_pairs, select_spells
 from mtg_ai.sealed.enrichment import SealedEnrichment
-from mtg_ai.sealed.ingest_log import parse_pool
+from mtg_ai.sealed.ingest_log import list_pools, parse_pool
 from mtg_ai.sealed.manabase import build_manabase, sources_needed
 from mtg_ai.sealed.models import Pool
 from mtg_ai.sealed.pipeline import SealedPipeline
@@ -57,6 +57,34 @@ def test_parse_pool_reports_detailed_off_when_no_pool():
     parsed = parse_pool("DETAILED LOGS: DISABLED\n(no card data here)\n")
     assert parsed.grp_ids == []
     assert parsed.detailed_logs is False
+
+
+def test_parse_pool_returns_most_recent_full_pool_not_the_first():
+    # Two distinct same-size (complete) pools. The old code took the *first* max-length pool;
+    # a fresh pool logged later must win instead. This is the "stale pool" regression.
+    log = (
+        '{"CardPool":[1,2,3,4,5]}\n'  # earlier full pool
+        '{"CardPool":[9,8,7,6,5]}\n'  # later, same-size full pool -> should win
+    )
+    assert parse_pool(log).grp_ids == [9, 8, 7, 6, 5]
+
+
+def test_list_pools_drops_fragments_dedups_and_orders_newest_first():
+    log = (
+        "DETAILED LOGS: ENABLED\n"
+        "[UnityCrossThreadLogger]7/20/2026 8:09:42 AM\n"
+        '{"InternalEventName":"ArenaDirect_MSH_Play_Sealed_20260717"}\n'
+        '{"CardPool":[1,2,3,4,5]}\n'  # older complete pool
+        '{"CardPool":[1,2,3]}\n'  # a shrinking fragment -> dropped (not max length)
+        "[UnityCrossThreadLogger]7/20/2026 8:12:39 AM\n"
+        '{"CardPool":[10,11,12,13,14]}\n'  # newer complete pool
+        '{"CardPool":[10,11,12,13,14]}\n'  # exact duplicate -> collapsed
+    )
+    pools = list_pools(log)
+    assert [p.grp_ids for p in pools] == [[10, 11, 12, 13, 14], [1, 2, 3, 4, 5]]
+    assert pools[0].timestamp == "7/20/2026 8:12:39 AM"
+    assert pools[1].timestamp == "7/20/2026 8:09:42 AM"
+    assert all(p.set_code == "msh" and p.detailed_logs is True for p in pools)
 
 
 # --- scoring ------------------------------------------------------------------------------
