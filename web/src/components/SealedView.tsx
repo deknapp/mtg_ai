@@ -146,11 +146,11 @@ export function SealedView({ result }: { result: SealedResult }) {
       </div>
 
       {/* Three-color / splash options */}
-      {result.splash_options.length > 0 && (
+      {(result.splash_options ?? []).length > 0 && (
         <section className="panel">
           <h2 className="panel-h">Three-color / splash options</h2>
           <ul className="splashes">
-            {result.splash_options.map((s) => {
+            {(result.splash_options ?? []).map((s) => {
               const isChosen =
                 chosen_colors.length === s.colors.length &&
                 s.colors.every((c) => chosen_colors.includes(c));
